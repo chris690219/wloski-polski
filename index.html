@@ -484,6 +484,39 @@
     margin-bottom: 1rem;
   }
   .section-title { font-size: 14px; font-weight: 500; color: var(--text-sec); }
+
+  /* Home screen tiles */
+  .home-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+    margin-top: 0.5rem;
+  }
+  .home-tile {
+    aspect-ratio: 1 / 1;
+    border-radius: 20px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    padding: 1rem;
+  }
+  .home-tile:hover { background: var(--surface2); border-color: var(--border-strong); }
+  .home-tile:active { transform: scale(0.97); }
+  .home-tile-icon { font-size: 40px; line-height: 1; }
+  .home-tile-label { font-size: 15px; font-weight: 600; color: var(--text); }
+  .home-tile-sub { font-size: 12px; color: var(--text-muted); }
+  @media (max-width: 480px) {
+    .home-tile-icon { font-size: 32px; }
+    .home-tile-label { font-size: 13px; }
+    .home-grid { gap: 10px; }
+  }
   @media (max-width: 480px) {
     body { padding: 1rem 0.75rem 3rem; }
 
@@ -681,30 +714,59 @@
 </div>
 
 <div class="app">
-  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; gap:8px;">
     <h1 style="margin-bottom:0;"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> ↔ <svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="3" height="1" y="0" fill="#fff"></rect><rect width="3" height="1" y="1" fill="#dc143c"></rect></svg> Nauka słówek</h1>
-    <button class="btn btn-sm" id="theme-toggle" onclick="toggleTheme()" title="Przełącz motyw" style="display:flex; align-items:center; gap:6px;">
-      <span id="theme-icon">☀️</span><span id="theme-label">Jasny</span>
-    </button>
+    <div style="display:flex; gap:8px; flex-shrink:0;">
+      <button class="btn btn-sm" id="home-toggle" onclick="switchTab('home')" title="Strona główna">🏠</button>
+      <button class="btn btn-sm" id="theme-toggle" onclick="toggleTheme()" title="Przełącz motyw" style="display:flex; align-items:center; gap:6px;">
+        <span id="theme-icon">☀️</span><span id="theme-label">Jasny</span>
+      </button>
+    </div>
   </div>
 
   <!-- Direction switch -->
-  <div class="direction-switch">
+  <div class="direction-switch" id="direction-switch">
     <button class="dir-btn active" id="sw-it-pl" onclick="setMode('it-pl')"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski → <svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="3" height="1" y="0" fill="#fff"></rect><rect width="3" height="1" y="1" fill="#dc143c"></rect></svg> Polski</button>
     <div class="dir-divider"></div>
     <button class="dir-btn" id="sw-pl-it" onclick="setMode('pl-it')"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="3" height="1" y="0" fill="#fff"></rect><rect width="3" height="1" y="1" fill="#dc143c"></rect></svg> Polski → <svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</button>
   </div>
 
   <!-- Tabs -->
-  <div class="tabs">
+  <div class="tabs" id="tabs-bar">
     <button class="tab active" id="tab-btn-words" onclick="switchTab('words')">📋 Lista słów</button>
     <button class="tab" id="tab-btn-quiz" onclick="switchTab('quiz')">✏️ Ćwicz</button>
     <button class="tab" id="tab-btn-mistakes" onclick="switchTab('mistakes')">⚠️ Błędy <span class="badge" id="mistake-badge" style="display: inline-flex;">10</span></button>
     <button class="tab" id="tab-btn-results" onclick="switchTab('results')">📊 Wyniki</button>
   </div>
 
+  <!-- HOME TAB -->
+  <div id="tab-home" class="section active">
+    <div class="home-grid">
+      <div class="home-tile" onclick="startQuiz()">
+        <div class="home-tile-icon">📝</div>
+        <div class="home-tile-label">Ćwicz</div>
+        <div class="home-tile-sub">Rozpocznij test</div>
+      </div>
+      <div class="home-tile" onclick="goToAddWords()">
+        <div class="home-tile-icon">➕</div>
+        <div class="home-tile-label">Dodaj słówka</div>
+        <div class="home-tile-sub">Nowe pary słów</div>
+      </div>
+      <div class="home-tile" onclick="switchTab('mistakes')">
+        <div class="home-tile-icon">📊</div>
+        <div class="home-tile-label">Statystyki</div>
+        <div class="home-tile-sub">Wszystkie wyniki</div>
+      </div>
+      <div class="home-tile" onclick="practiceOnlyMistakes()">
+        <div class="home-tile-icon">🔁</div>
+        <div class="home-tile-label">Ćwicz błędy</div>
+        <div class="home-tile-sub">Tylko trudne słowa</div>
+      </div>
+    </div>
+  </div>
+
   <!-- WORDS TAB -->
-  <div id="tab-words" class="section active">
+  <div id="tab-words" class="section">
     <div class="add-row">
       <input type="text" id="in-it" placeholder="Włoski (np. cane)" autocomplete="off" onkeydown="addOnEnter(event)">
       <input type="text" id="in-pl" placeholder="Polski (np. pies)" autocomplete="off" onkeydown="addOnEnter(event)">
@@ -1704,10 +1766,13 @@ function renderResults() {
 
 // ── Tab switching ─────────────────────────────────────────────────────────
 function switchTab(tab) {
-  ['words','quiz','mistakes','results'].forEach(t => {
-    document.getElementById('tab-btn-' + t).classList.toggle('active', t === tab);
+  ['home','words','quiz','mistakes','results'].forEach(t => {
+    const btn = document.getElementById('tab-btn-' + t);
+    if (btn) btn.classList.toggle('active', t === tab);
     document.getElementById('tab-' + t).classList.toggle('active', t === tab);
   });
+  document.getElementById('direction-switch').style.display = tab === 'home' ? 'none' : 'flex';
+  document.getElementById('tabs-bar').style.display         = tab === 'home' ? 'none' : 'flex';
   if (tab === 'quiz') {
     if (!words.length) {
       document.getElementById('quiz-empty').style.display   = 'block';
@@ -1716,6 +1781,11 @@ function switchTab(tab) {
     }
   }
   if (tab === 'mistakes') renderMistakes();
+}
+
+function goToAddWords() {
+  switchTab('words');
+  setTimeout(() => { const el = document.getElementById('in-it'); if (el) el.focus(); }, 50);
 }
 
 // ── Theme ─────────────────────────────────────────────────────────────────
@@ -1752,10 +1822,7 @@ loadTheme();
 load();
 renderWordList();
 updateMistakeBadge();
-if (words.length > 0) {
-  restartQuiz();
-  switchTab('quiz');
-}
+switchTab('home');
 
 // Hide splash after 3 seconds
 setTimeout(() => {
