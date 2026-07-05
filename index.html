@@ -512,10 +512,38 @@
   .home-tile-icon { font-size: 40px; line-height: 1; }
   .home-tile-label { font-size: 15px; font-weight: 600; color: var(--text); }
   .home-tile-sub { font-size: 12px; color: var(--text-muted); }
+  .home-tile-wide {
+    grid-column: span 2;
+    aspect-ratio: auto;
+    flex-direction: row;
+    justify-content: center;
+    padding: 1.1rem 1rem;
+  }
+  .home-tile-wide .home-tile-icon { font-size: 34px; }
+  .home-tile-wide .home-tile-text { text-align: left; }
+
+  .learn-option {
+    padding: 14px 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    color: var(--text);
+    font-size: 16px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: center;
+    width: 100%;
+  }
+  .learn-option:hover:not(:disabled) { background: var(--surface2); }
+  .learn-option.correct { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
+  .learn-option.wrong { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
+  .learn-option:disabled { cursor: default; opacity: 0.75; }
   @media (max-width: 480px) {
     .home-tile-icon { font-size: 32px; }
     .home-tile-label { font-size: 13px; }
     .home-grid { gap: 10px; }
+    .home-tile-wide .home-tile-icon { font-size: 28px; }
   }
   @media (max-width: 480px) {
     body { padding: 1rem 0.75rem 3rem; }
@@ -761,6 +789,13 @@
         <div class="home-tile-icon">🔁</div>
         <div class="home-tile-label">Ćwicz błędy</div>
         <div class="home-tile-sub">Tylko trudne słowa</div>
+      </div>
+      <div class="home-tile home-tile-wide" onclick="startLearningMode()">
+        <div class="home-tile-icon">🧠</div>
+        <div class="home-tile-text">
+          <div class="home-tile-label">Tryb nauki</div>
+          <div class="home-tile-sub">Wybierz poprawne tłumaczenie z 3 opcji</div>
+        </div>
       </div>
     </div>
   </div>
@@ -1188,6 +1223,31 @@ Come stai?, Jak się masz?"></textarea>
     <div id="results-empty" class="empty">📊 Ukończ rundę, żeby zobaczyć wyniki.</div>
     <div id="results-content" style="display:none;"></div>
   </div>
+
+  <!-- LEARNING MODE TAB -->
+  <div id="tab-learn" class="section">
+    <div id="learn-empty" class="empty" style="display:none;">📚 Potrzeba co najmniej 3 różnych słów, aby uruchomić tryb nauki.</div>
+    <div id="learn-content" style="display:none;">
+      <div class="direction-switch" id="learn-direction-switch" style="margin-bottom:1.25rem;">
+        <button class="dir-btn active" id="learn-sw-it-pl" onclick="setLearnMode('it-pl')"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski → <svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="3" height="1" y="0" fill="#fff"></rect><rect width="3" height="1" y="1" fill="#dc143c"></rect></svg> Polski</button>
+        <div class="dir-divider"></div>
+        <button class="dir-btn" id="learn-sw-pl-it" onclick="setLearnMode('pl-it')"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="3" height="1" y="0" fill="#fff"></rect><rect width="3" height="1" y="1" fill="#dc143c"></rect></svg> Polski → <svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</button>
+      </div>
+      <div class="stats" style="grid-template-columns: repeat(2,1fr); margin-bottom:1.25rem;">
+        <div class="stat"><div class="stat-val" id="learn-correct">0</div><div class="stat-label">Dobrze</div></div>
+        <div class="stat"><div class="stat-val" id="learn-wrong">0</div><div class="stat-label">Błędy</div></div>
+      </div>
+      <div class="card">
+        <div class="lang-label" id="learn-lang-label"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</div>
+        <div class="word-main" id="learn-word">—</div>
+      </div>
+      <div id="learn-options" style="display:flex; flex-direction:column; gap:10px; margin-bottom:1rem;"></div>
+      <div class="feedback" id="learn-feedback"></div>
+      <div class="controls">
+        <button class="btn" onclick="switchTab('home')">🏠 Zakończ</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -1207,6 +1267,10 @@ let history    = [];
 let mistakeLog = {};   // key=it → {it, pl, count, attempts:[]}
 let mode       = 'it-pl';
 let dirStats   = { 'it-pl': {correct:0, wrong:0}, 'pl-it': {correct:0, wrong:0} }; // persisted direction stats
+let learnCurrent = null;
+let learnCorrect = 0;
+let learnWrong   = 0;
+let learnMode    = 'it-pl';
 
 // ── Persistence ───────────────────────────────────────────────────────────
 function save() {
@@ -1464,6 +1528,91 @@ function practiceOnlyMistakes() {
 function getLimit() {
   const el = document.getElementById('quiz-limit');
   return el ? (parseInt(el.value) || 0) : 0;
+}
+
+// ── Learning mode (multiple choice) ─────────────────────────────────────
+function startLearningMode() {
+  if (words.length < 3) { alert('Potrzeba przynajmniej 3 różnych słów, aby uruchomić tryb nauki.'); return; }
+  learnCorrect = 0;
+  learnWrong   = 0;
+  learnCurrent = null;
+  switchTab('learn');
+  document.getElementById('learn-empty').style.display   = 'none';
+  document.getElementById('learn-content').style.display = 'block';
+  updateLearnStats();
+  updateLearnModeButtons();
+  nextLearnWord();
+}
+
+function setLearnMode(m) {
+  learnMode    = m;
+  learnCurrent = null;
+  updateLearnModeButtons();
+  nextLearnWord();
+}
+
+function updateLearnModeButtons() {
+  document.getElementById('learn-sw-it-pl').classList.toggle('active', learnMode === 'it-pl');
+  document.getElementById('learn-sw-pl-it').classList.toggle('active', learnMode === 'pl-it');
+}
+
+function updateLearnStats() {
+  document.getElementById('learn-correct').textContent = learnCorrect;
+  document.getElementById('learn-wrong').textContent   = learnWrong;
+}
+
+function nextLearnWord() {
+  let pool = words;
+  if (learnCurrent && words.length > 1) pool = words.filter(w => w.it !== learnCurrent.it);
+  learnCurrent = pool[Math.floor(Math.random() * pool.length)];
+
+  const qField = learnMode === 'it-pl' ? 'it' : 'pl';
+  const aField = learnMode === 'it-pl' ? 'pl' : 'it';
+
+  document.getElementById('learn-lang-label').innerHTML = learnMode === 'it-pl' ? (FLAG_IT + ' Włoski') : (FLAG_PL + ' Polski');
+  document.getElementById('learn-word').textContent = learnCurrent[qField];
+  document.getElementById('learn-feedback').textContent = '';
+  document.getElementById('learn-feedback').className   = 'feedback';
+
+  const correctNorm = normalize(learnCurrent[aField]);
+  let distractPool = [...new Set(words.map(w => w[aField]))].filter(val => normalize(val) !== correctNorm);
+  distractPool = distractPool.sort(() => Math.random() - 0.5).slice(0, 2);
+  const options = [learnCurrent[aField], ...distractPool].sort(() => Math.random() - 0.5);
+
+  const container = document.getElementById('learn-options');
+  container.innerHTML = options.map((opt, idx) =>
+    `<button class="learn-option" data-idx="${idx}">${esc(opt)}</button>`
+  ).join('');
+  container.querySelectorAll('.learn-option').forEach(btn => {
+    btn.addEventListener('click', () => checkLearnAnswer(btn, options[parseInt(btn.dataset.idx)]));
+  });
+}
+
+function checkLearnAnswer(btn, selected) {
+  if (btn.disabled) return;
+  const aField    = learnMode === 'it-pl' ? 'pl' : 'it';
+  const isCorrect = normalize(selected) === normalize(learnCurrent[aField]);
+  if (isCorrect) {
+    learnCorrect++;
+    dirStats[learnMode].correct++;
+    save();
+    btn.classList.add('correct');
+    document.querySelectorAll('#learn-options .learn-option').forEach(b => b.disabled = true);
+    document.getElementById('learn-feedback').textContent = '✓ Dobrze!';
+    document.getElementById('learn-feedback').className   = 'feedback correct';
+    updateLearnStats();
+    setTimeout(nextLearnWord, 700);
+  } else {
+    learnWrong++;
+    dirStats[learnMode].wrong++;
+    recordMistake(learnCurrent.it, learnCurrent.pl, selected);
+    save();
+    btn.classList.add('wrong');
+    btn.disabled = true;
+    document.getElementById('learn-feedback').textContent = '✗ Spróbuj ponownie';
+    document.getElementById('learn-feedback').className   = 'feedback wrong';
+    updateLearnStats();
+  }
 }
 
 function restartQuiz() {
@@ -1766,13 +1915,14 @@ function renderResults() {
 
 // ── Tab switching ─────────────────────────────────────────────────────────
 function switchTab(tab) {
-  ['home','words','quiz','mistakes','results'].forEach(t => {
+  ['home','words','quiz','mistakes','results','learn'].forEach(t => {
     const btn = document.getElementById('tab-btn-' + t);
     if (btn) btn.classList.toggle('active', t === tab);
     document.getElementById('tab-' + t).classList.toggle('active', t === tab);
   });
-  document.getElementById('direction-switch').style.display = tab === 'home' ? 'none' : 'flex';
-  document.getElementById('tabs-bar').style.display         = tab === 'home' ? 'none' : 'flex';
+  const hideChrome = (tab === 'home' || tab === 'learn');
+  document.getElementById('direction-switch').style.display = hideChrome ? 'none' : 'flex';
+  document.getElementById('tabs-bar').style.display         = hideChrome ? 'none' : 'flex';
   if (tab === 'quiz') {
     if (!words.length) {
       document.getElementById('quiz-empty').style.display   = 'block';
