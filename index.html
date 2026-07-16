@@ -2050,6 +2050,35 @@ function normalize(s) {
     .trim();
 }
 
+// Splits a user's typed answer into parts for comma-pair matching:
+// prefers splitting on commas; if there are none, falls back to whitespace.
+function splitAnswerParts(str) {
+  const trimmed = str.trim();
+  if (trimmed.includes(',')) return trimmed.split(',').map(s => s.trim()).filter(Boolean);
+  return trimmed.split(/\s+/).filter(Boolean);
+}
+
+// A single acceptable answer matches the user's input either exactly, or —
+// when the accepted answer is exactly two comma-separated words — in either order.
+function altMatches(userRaw, alt) {
+  if (normalize(userRaw) === normalize(alt)) return true;
+  const altParts = alt.split(',').map(s => s.trim()).filter(Boolean);
+  if (altParts.length === 2) {
+    const correctPair = altParts.map(normalize).sort();
+    const userParts = splitAnswerParts(userRaw);
+    if (userParts.length === 2) {
+      const userPair = userParts.map(normalize).sort();
+      if (correctPair[0] === userPair[0] && correctPair[1] === userPair[1]) return true;
+    }
+  }
+  return false;
+}
+
+// correctString may itself contain several acceptable answers separated by '/'
+function isAnswerCorrect(userRaw, correctString) {
+  return correctString.split('/').map(s => s.trim()).some(alt => altMatches(userRaw, alt));
+}
+
 function checkAnswer() {
   if (answered) return;
   recordDailyActivity();
@@ -2057,7 +2086,7 @@ function checkAnswer() {
   const userRaw   = inp.value.trim();
   const correct_a = mode === 'it-pl' ? current.pl : current.it;
   answered        = true;
-  const isOk      = correct_a.split('/').map(s => s.trim()).some(v => normalize(userRaw) === normalize(v));
+  const isOk      = isAnswerCorrect(userRaw, correct_a);
   if (isOk) {
     correct++;
     dirStats[mode].correct++;
