@@ -539,22 +539,6 @@
   .learn-option.correct { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
   .learn-option.wrong { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
   .learn-option:disabled { cursor: default; opacity: 0.75; }
-  .speak-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    font-size: 14px;
-    padding: 2px 5px;
-    border-radius: 4px;
-    color: var(--text-muted);
-    vertical-align: middle;
-    line-height: 1;
-  }
-  .speak-btn:hover { color: var(--accent); background: var(--surface2); }
-  .speak-btn-lg {
-    font-size: 22px;
-    padding: 4px 10px;
-  }
   .cat-pill {
     display: inline-block;
     font-size: 11px;
@@ -1190,7 +1174,7 @@
       </div>
       <div style="display:flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius); padding:5px 10px;">
         <label for="quiz-cat-filter" style="font-size:13px; color:var(--text-sec); white-space:nowrap;">Kategoria:</label>
-        <select id="quiz-cat-filter" style="border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-size:13px; font-weight:500; cursor:pointer; outline:none; border-radius:4px; padding:3px 6px; color-scheme: light dark;">
+        <select id="quiz-cat-filter" onchange="onQuizCatFilterChange()" style="border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-size:13px; font-weight:500; cursor:pointer; outline:none; border-radius:4px; padding:3px 6px; color-scheme: light dark;">
           <option value="">🏷️ Wszystkie kategorie</option>
         </select>
       </div>
@@ -1225,6 +1209,12 @@ Come stai?, Jak się masz?"></textarea>
       📚 Najpierw dodaj słowa w zakładce „Lista słów".
     </div>
     <div id="quiz-content" style="display: block;">
+      <div style="display:flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius); padding:6px 10px; margin-bottom:1rem; width:fit-content;">
+        <label for="quiz-tab-cat-filter" style="font-size:13px; color:var(--text-sec); white-space:nowrap;">🏷️ Kategoria:</label>
+        <select id="quiz-tab-cat-filter" onchange="onQuizTabCategoryChange()" style="border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-size:13px; font-weight:500; cursor:pointer; outline:none; border-radius:4px; padding:3px 6px; color-scheme: light dark;">
+          <option value="">Wszystkie kategorie</option>
+        </select>
+      </div>
       <div id="quiz-mode-banner" style="display:none; background:var(--warning-bg); color:var(--warning-text); border:1px solid var(--border); border-radius:var(--radius); padding:8px 14px; font-size:13px; font-weight:500; margin-bottom:1rem; justify-content:center;"></div>
       <div class="stats">
         <div class="stat"><div class="stat-val" id="stat-correct">0</div><div class="stat-label">Dobrze</div></div>
@@ -1239,7 +1229,6 @@ Come stai?, Jak się masz?"></textarea>
       <div class="card">
         <div class="lang-label" id="question-lang"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</div>
         <div class="word-main" id="current-word">buongiorno</div>
-        <button class="speak-btn speak-btn-lg" id="quiz-speak-btn" onclick="speakCurrentQuizWord()" title="Odsłuchaj">🔊</button>
         <div class="word-hint" id="card-hint"></div>
       </div>
       <input class="answer-input" id="answer" type="text" placeholder="Wpisz tłumaczenie..." onkeydown="handleKey(event)" autocomplete="off" autocorrect="off" spellcheck="false">
@@ -1322,7 +1311,6 @@ Come stai?, Jak się masz?"></textarea>
       <div class="card">
         <div class="lang-label" id="learn-lang-label"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</div>
         <div class="word-main" id="learn-word">—</div>
-        <button class="speak-btn speak-btn-lg" id="learn-speak-btn" onclick="speakCurrentLearnWord()" title="Odsłuchaj">🔊</button>
       </div>
       <div id="learn-options" style="display:flex; flex-direction:column; gap:10px; margin-bottom:1rem;"></div>
       <div class="feedback" id="learn-feedback"></div>
@@ -1674,8 +1662,8 @@ function renderWordList() {
   } else {
     tbody.innerHTML = visible.map(w =>
       `<tr id="row-${w.idx}">
-        <td id="cell-it-${w.idx}">${wordCellHTML(w.it, 'it-IT')}</td>
-        <td id="cell-pl-${w.idx}">${wordCellHTML(w.pl, 'pl-PL')}</td>
+        <td id="cell-it-${w.idx}">${esc(w.it)}</td>
+        <td id="cell-pl-${w.idx}">${esc(w.pl)}</td>
         <td id="cell-cat-${w.idx}">${w.cat ? `<span class="cat-pill">${esc(w.cat)}</span>` : ''}</td>
         <td style="white-space:nowrap;">
           <button class="edit-btn" onclick="editWord(${w.idx})" title="Edytuj">✎</button>
@@ -1715,13 +1703,22 @@ function updateCategoryOptions() {
     if (cats.includes(current)) filterSel.value = current;
   }
 
-  // Quiz category filter
+  // Quiz category filter (in Words tab)
   const quizSel = document.getElementById('quiz-cat-filter');
   if (quizSel) {
     const current = quizSel.value;
     quizSel.innerHTML = '<option value="">🏷️ Wszystkie kategorie</option>' +
       cats.map(c => `<option value="${escAttr(c)}">${esc(c)}</option>`).join('');
     if (cats.includes(current)) quizSel.value = current;
+  }
+
+  // Quiz category filter (visible inside the Quiz tab itself)
+  const quizTabSel = document.getElementById('quiz-tab-cat-filter');
+  if (quizTabSel) {
+    const current = quizTabSel.value;
+    quizTabSel.innerHTML = '<option value="">Wszystkie kategorie</option>' +
+      cats.map(c => `<option value="${escAttr(c)}">${esc(c)}</option>`).join('');
+    if (cats.includes(current)) quizTabSel.value = current;
   }
 
   // Learning mode category filter
@@ -1779,8 +1776,8 @@ function cancelEdit(i) {
   const row = document.getElementById('row-' + i);
   if (!row) return;
   row.classList.remove('editing');
-  document.getElementById('cell-it-' + i).innerHTML  = wordCellHTML(words[i].it, 'it-IT');
-  document.getElementById('cell-pl-' + i).innerHTML  = wordCellHTML(words[i].pl, 'pl-PL');
+  document.getElementById('cell-it-' + i).innerHTML  = esc(words[i].it);
+  document.getElementById('cell-pl-' + i).innerHTML  = esc(words[i].pl);
   document.getElementById('cell-cat-' + i).innerHTML = words[i].cat ? `<span class="cat-pill">${esc(words[i].cat)}</span>` : '';
   row.cells[3].innerHTML =
     `<button class="edit-btn" onclick="editWord(${i})" title="Edytuj">✎</button>
@@ -1793,31 +1790,6 @@ function esc(s) {
 
 function escAttr(s) {
   return esc(s).replace(/"/g, '&quot;');
-}
-
-// ── Text-to-speech (wymowa) ─────────────────────────────────────────────
-function speak(text, lang) {
-  if (!('speechSynthesis' in window)) {
-    alert('Twoja przeglądarka nie obsługuje odczytywania na głos.');
-    return;
-  }
-  try {
-    window.speechSynthesis.cancel(); // stop anything currently speaking
-    const utter = new SpeechSynthesisUtterance(text);
-    utter.lang  = lang;
-    utter.rate  = 0.9;
-    window.speechSynthesis.speak(utter);
-  } catch (e) {
-    alert('Nie udało się odtworzyć wymowy.');
-  }
-}
-
-function speakFromButton(btn) {
-  speak(btn.dataset.text, btn.dataset.lang);
-}
-
-function wordCellHTML(text, lang) {
-  return `${esc(text)} <button class="speak-btn" data-text="${escAttr(text)}" data-lang="${lang}" onclick="speakFromButton(this)" title="Odsłuchaj">🔊</button>`;
 }
 
 // ── Mode ──────────────────────────────────────────────────────────────────
@@ -1870,6 +1842,22 @@ function getLimit() {
 function getQuizCategoryFilter() {
   const el = document.getElementById('quiz-cat-filter');
   return el ? el.value : '';
+}
+
+// Called when the category dropdown in the Words tab changes — mirror it into the Quiz tab's dropdown.
+function onQuizCatFilterChange() {
+  const val = getQuizCategoryFilter();
+  const quizTabSel = document.getElementById('quiz-tab-cat-filter');
+  if (quizTabSel) quizTabSel.value = val;
+}
+
+// Called when the category dropdown inside the Quiz tab changes — mirror it back and restart the quiz.
+function onQuizTabCategoryChange() {
+  const quizTabSel = document.getElementById('quiz-tab-cat-filter');
+  const val = quizTabSel ? quizTabSel.value : '';
+  const quizSel = document.getElementById('quiz-cat-filter');
+  if (quizSel) quizSel.value = val;
+  restartQuiz();
 }
 
 function getLearnCategoryFilter() {
@@ -1944,13 +1932,6 @@ function nextLearnWord() {
   container.querySelectorAll('.learn-option').forEach(btn => {
     btn.addEventListener('click', () => checkLearnAnswer(btn, options[parseInt(btn.dataset.idx)]));
   });
-}
-
-function speakCurrentLearnWord() {
-  if (!learnCurrent) return;
-  const qField = learnMode === 'it-pl' ? 'it' : 'pl';
-  const lang   = learnMode === 'it-pl' ? 'it-IT' : 'pl-PL';
-  speak(learnCurrent[qField], lang);
 }
 
 function checkLearnAnswer(btn, selected) {
@@ -2028,13 +2009,6 @@ function nextWord(first) {
   document.getElementById('current-word').textContent = mode === 'it-pl' ? current.it : current.pl;
   updateStats();
   inp.focus();
-}
-
-function speakCurrentQuizWord() {
-  if (!current) return;
-  const text = mode === 'it-pl' ? current.it : current.pl;
-  const lang = mode === 'it-pl' ? 'it-IT' : 'pl-PL';
-  speak(text, lang);
 }
 
 function normalize(s) {
@@ -2286,10 +2260,10 @@ function renderMistakes() {
     const label = cnt === 1 ? 'błąd' : cnt < 5 ? 'błędy' : 'błędów';
     return `<div class="mistake-card">
       <div class="mistake-top">
-        <div class="mistake-word">${esc(m.it)} <button class="speak-btn" data-text="${escAttr(m.it)}" data-lang="it-IT" onclick="speakFromButton(this)" title="Odsłuchaj">🔊</button></div>
+        <div class="mistake-word">${esc(m.it)}</div>
         <div class="mistake-count">${cnt} ${label}</div>
       </div>
-      <div class="mistake-correct">✓ ${esc(m.pl)} <button class="speak-btn" data-text="${escAttr(m.pl)}" data-lang="pl-PL" onclick="speakFromButton(this)" title="Odsłuchaj">🔊</button></div>
+      <div class="mistake-correct">✓ ${esc(m.pl)}</div>
       ${unique.length ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Twoje odpowiedzi:</div>
       <div class="mistake-attempts">${unique.map(a=>`<span class="attempt-pill">${esc(a)}</span>`).join('')}</div>` : ''}
     </div>`;
