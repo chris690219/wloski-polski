@@ -539,6 +539,33 @@
   .learn-option.correct { background: var(--success-bg); border-color: var(--success-border); color: var(--success-text); }
   .learn-option.wrong { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-text); }
   .learn-option:disabled { cursor: default; opacity: 0.75; }
+  .speak-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    vertical-align: middle;
+    line-height: 1;
+  }
+  .speak-btn:hover { color: var(--accent); background: var(--surface2); }
+  .speak-btn-lg {
+    font-size: 22px;
+    padding: 4px 10px;
+  }
+  .cat-pill {
+    display: inline-block;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 99px;
+    background: var(--surface2);
+    color: var(--text-sec);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
   @media (max-width: 480px) {
     .home-tile-icon { font-size: 32px; }
     .home-tile-label { font-size: 13px; }
@@ -562,7 +589,7 @@
 
     /* Make the word table scroll horizontally instead of squashing/overflowing the page */
     .words-box { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-    .word-table { min-width: 420px; }
+    .word-table { min-width: 520px; }
 
     .stats { gap: 6px; }
     .stat { padding: 8px 6px; }
@@ -769,6 +796,18 @@
 
   <!-- HOME TAB -->
   <div id="tab-home" class="section active">
+    <div id="streak-widget" style="display:none; align-items:center; gap:12px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 16px; margin-bottom:1rem;">
+      <div style="font-size:30px; line-height:1;">🔥</div>
+      <div style="font-size:14px;"><strong id="streak-count" style="font-size:18px;">0</strong> <span id="streak-sub">dni z rzędu</span></div>
+    </div>
+    <div class="last-mistake-widget" style="display:none; align-items:center; justify-content:space-between; gap:10px; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 16px; margin-bottom:1rem;">
+      <div>
+        <div style="font-size:11px; font-weight:600; letter-spacing:0.04em; text-transform:uppercase; color:var(--text-muted); margin-bottom:3px;">🔴 Ostatni błąd</div>
+        <div style="font-size:15px;"><strong class="last-mistake-word"></strong> → <span class="last-mistake-answer" style="color:var(--success-text); font-weight:600;"></span></div>
+      </div>
+      <button class="btn btn-sm" onclick="practiceOnlyMistakes()">🔁 Ćwicz</button>
+      <button class="del-btn" onclick="dismissLastMistake()" title="Ukryj" style="flex-shrink:0;">✕</button>
+    </div>
     <div class="home-grid">
       <div class="home-tile" onclick="startQuiz()">
         <div class="home-tile-icon">📝</div>
@@ -805,23 +844,31 @@
     <div class="add-row">
       <input type="text" id="in-it" placeholder="Włoski (np. cane)" autocomplete="off" onkeydown="addOnEnter(event)">
       <input type="text" id="in-pl" placeholder="Polski (np. pies)" autocomplete="off" onkeydown="addOnEnter(event)">
+      <input type="text" id="in-cat" placeholder="Kategoria (opcjonalnie)" list="cat-list" autocomplete="off" onkeydown="addOnEnter(event)" style="flex:0 0 150px;">
+      <datalist id="cat-list"></datalist>
       <button class="btn btn-accent" onclick="addWord()">Dodaj</button>
     </div>
 
-    <div style="position:relative; margin-bottom:10px;">
-      <input type="text" id="word-search" placeholder="🔍 Szukaj słówka..." autocomplete="off" oninput="renderWordList()"
-        style="width:100%; padding:9px 36px 9px 12px; border:1px solid var(--border-strong); border-radius:var(--radius); background:var(--surface); color:var(--text); font-size:14px;">
-      <button id="word-search-clear" onclick="clearWordSearch()" title="Wyczyść"
-        style="display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); font-size:16px; cursor:pointer; padding:4px 6px;">✕</button>
+    <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap;">
+      <div style="position:relative; flex:1 1 200px;">
+        <input type="text" id="word-search" placeholder="🔍 Szukaj słówka..." autocomplete="off" oninput="renderWordList()"
+          style="width:100%; padding:9px 36px 9px 12px; border:1px solid var(--border-strong); border-radius:var(--radius); background:var(--surface); color:var(--text); font-size:14px;">
+        <button id="word-search-clear" onclick="clearWordSearch()" title="Wyczyść"
+          style="display:none; position:absolute; right:6px; top:50%; transform:translateY(-50%); background:none; border:none; color:var(--text-muted); font-size:16px; cursor:pointer; padding:4px 6px;">✕</button>
+      </div>
+      <select id="cat-filter" onchange="renderWordList()" style="border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-size:14px; border-radius:var(--radius); padding:9px 10px; color-scheme: light dark; flex:0 0 auto;">
+        <option value="">🏷️ Wszystkie kategorie</option>
+      </select>
     </div>
 
     <div class="words-box" id="words-box">
       <div class="words-box-empty" id="words-empty" style="display: none;">Brak słów. Dodaj pierwsze powyżej lub zaimportuj listę.</div>
       <table class="word-table" id="words-table" style="display: table;">
-        <thead><tr><th><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</th><th><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="3" height="1" y="0" fill="#fff"></rect><rect width="3" height="1" y="1" fill="#dc143c"></rect></svg> Polski</th><th></th></tr></thead>
+        <thead><tr><th><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</th><th><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="3" height="1" y="0" fill="#fff"></rect><rect width="3" height="1" y="1" fill="#dc143c"></rect></svg> Polski</th><th>Kategoria</th><th></th></tr></thead>
         <tbody id="words-body"><tr id="row-0">
       <td id="cell-it-0">buongiorno</td>
       <td id="cell-pl-0">dzien dobry</td>
+      <td id="cell-cat-0"></td>
       <td style="white-space:nowrap;">
         <button class="edit-btn" onclick="editWord(0)" title="Edytuj">✎</button>
         <button class="del-btn" onclick="deleteWord(0)" title="Usuń">✕</button>
@@ -1141,14 +1188,24 @@
           <option value="50">50</option>
         </select>
       </div>
+      <div style="display:flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius); padding:5px 10px;">
+        <label for="quiz-cat-filter" style="font-size:13px; color:var(--text-sec); white-space:nowrap;">Kategoria:</label>
+        <select id="quiz-cat-filter" style="border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-size:13px; font-weight:500; cursor:pointer; outline:none; border-radius:4px; padding:3px 6px; color-scheme: light dark;">
+          <option value="">🏷️ Wszystkie kategorie</option>
+        </select>
+      </div>
       <button class="btn btn-sm" onclick="loadSamples()">Załaduj przykłady</button>
       <button class="btn btn-sm btn-danger" onclick="clearAll()">Usuń wszystko</button>
       <button class="btn btn-sm" onclick="exportFile()" title="Pobierz plik HTML ze słowami wbudowanymi — otwórz go na innym komputerze">💾 Eksportuj plik</button>
+      <button class="btn btn-sm" onclick="exportCSV()" title="Pobierz tylko listę słówek jako plik CSV">📄 Eksportuj CSV</button>
+      <button class="btn btn-sm" onclick="document.getElementById('csv-file-input').click()" title="Wczytaj słówka z pliku CSV">📂 Importuj CSV</button>
+      <input type="file" id="csv-file-input" accept=".csv,text/csv" style="display:none" onchange="handleCSVImport(event)">
       <span id="word-count" style="font-size:13px; color:var(--text-muted); align-self:center;">43 par słów</span>
     </div>
 
     <div style="font-size:12px; color:var(--text-muted); margin-bottom:1rem; padding:8px 10px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); line-height:1.5;">
-      💾 <strong>Przenoszenie na inny komputer:</strong> kliknij „Eksportuj plik", żeby pobrać nową wersję HTML ze wszystkimi słowami wbudowanymi. Otwórz ten plik w przeglądarce na dowolnym komputerze — słowa będą gotowe bez dodatkowej konfiguracji.
+      💾 <strong>Przenoszenie na inny komputer:</strong> kliknij „Eksportuj plik", żeby pobrać nową wersję HTML ze wszystkimi słowami wbudowanymi. Otwórz ten plik w przeglądarce na dowolnym komputerze — słowa będą gotowe bez dodatkowej konfiguracji.<br>
+      📄 <strong>Sama lista słówek:</strong> „Eksportuj CSV" zapisuje tylko listę słówek (bez ustawień aplikacji) — możesz ją otworzyć w Excelu/Numbers albo wczytać z powrotem przyciskiem „Importuj CSV" na dowolnym komputerze z tą aplikacją.
     </div>
     <details class="import-area">
       <summary>📥 Importuj listę (wklej wiele par naraz)</summary>
@@ -1175,9 +1232,14 @@ Come stai?, Jak się masz?"></textarea>
         <div class="stat"><div class="stat-val" id="stat-left">42</div><div class="stat-label">Pozostało</div></div>
       </div>
       <div class="progress-bar"><div class="progress-fill" id="progress" style="width:0%"></div></div>
+      <div class="last-mistake-widget" style="display:none; align-items:center; justify-content:space-between; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:7px 12px; margin-bottom:1rem; font-size:12px;">
+        <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔴 Ostatni błąd: <strong class="last-mistake-word"></strong> → <span class="last-mistake-answer" style="color:var(--success-text); font-weight:600;"></span></div>
+        <button class="del-btn" onclick="dismissLastMistake()" title="Ukryj" style="flex-shrink:0;">✕</button>
+      </div>
       <div class="card">
         <div class="lang-label" id="question-lang"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</div>
         <div class="word-main" id="current-word">buongiorno</div>
+        <button class="speak-btn speak-btn-lg" id="quiz-speak-btn" onclick="speakCurrentQuizWord()" title="Odsłuchaj">🔊</button>
         <div class="word-hint" id="card-hint"></div>
       </div>
       <input class="answer-input" id="answer" type="text" placeholder="Wpisz tłumaczenie..." onkeydown="handleKey(event)" autocomplete="off" autocorrect="off" spellcheck="false">
@@ -1243,13 +1305,24 @@ Come stai?, Jak się masz?"></textarea>
         <div class="dir-divider"></div>
         <button class="dir-btn" id="learn-sw-pl-it" onclick="setLearnMode('pl-it')"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="3" height="1" y="0" fill="#fff"></rect><rect width="3" height="1" y="1" fill="#dc143c"></rect></svg> Polski → <svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</button>
       </div>
+      <div style="display:flex; align-items:center; gap:6px; background:var(--surface); border:1px solid var(--border-strong); border-radius:var(--radius); padding:5px 10px; margin-bottom:1.25rem; width:fit-content;">
+        <label for="learn-cat-filter" style="font-size:13px; color:var(--text-sec); white-space:nowrap;">Kategoria:</label>
+        <select id="learn-cat-filter" onchange="onLearnCategoryChange()" style="border:1px solid var(--border-strong); background:var(--surface); color:var(--text); font-size:13px; font-weight:500; cursor:pointer; outline:none; border-radius:4px; padding:3px 6px; color-scheme: light dark;">
+          <option value="">🏷️ Wszystkie kategorie</option>
+        </select>
+      </div>
       <div class="stats" style="grid-template-columns: repeat(2,1fr); margin-bottom:1.25rem;">
         <div class="stat"><div class="stat-val" id="learn-correct">0</div><div class="stat-label">Dobrze</div></div>
         <div class="stat"><div class="stat-val" id="learn-wrong">0</div><div class="stat-label">Błędy</div></div>
       </div>
+      <div class="last-mistake-widget" style="display:none; align-items:center; justify-content:space-between; gap:8px; background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius); padding:7px 12px; margin-bottom:1rem; font-size:12px;">
+        <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🔴 Ostatni błąd: <strong class="last-mistake-word"></strong> → <span class="last-mistake-answer" style="color:var(--success-text); font-weight:600;"></span></div>
+        <button class="del-btn" onclick="dismissLastMistake()" title="Ukryj" style="flex-shrink:0;">✕</button>
+      </div>
       <div class="card">
         <div class="lang-label" id="learn-lang-label"><svg class="flag-icon" viewBox="0 0 3 2" xmlns="http://www.w3.org/2000/svg"><rect width="1" height="2" x="0" fill="#009246"></rect><rect width="1" height="2" x="1" fill="#fff"></rect><rect width="1" height="2" x="2" fill="#ce2b37"></rect></svg> Włoski</div>
         <div class="word-main" id="learn-word">—</div>
+        <button class="speak-btn speak-btn-lg" id="learn-speak-btn" onclick="speakCurrentLearnWord()" title="Odsłuchaj">🔊</button>
       </div>
       <div id="learn-options" style="display:flex; flex-direction:column; gap:10px; margin-bottom:1rem;"></div>
       <div class="feedback" id="learn-feedback"></div>
@@ -1275,18 +1348,24 @@ let answered   = false;
 let hintShown  = false;
 let history    = [];
 let mistakeLog = {};   // key=it → {it, pl, count, attempts:[]}
+let lastMistake = null; // {it, pl} — most recent mistake, for quick lookup
+let lastMistakeDismissed = false;
 let mode       = 'it-pl';
 let dirStats   = { 'it-pl': {correct:0, wrong:0}, 'pl-it': {correct:0, wrong:0} }; // persisted direction stats
 let learnCurrent = null;
 let learnCorrect = 0;
 let learnWrong   = 0;
 let learnMode    = 'it-pl';
+let streakCount    = 0;
+let streakLastDate = null; // 'YYYY-MM-DD' of the last day the user practiced
 
 // ── Persistence ───────────────────────────────────────────────────────────
 function save() {
-  localStorage.setItem('itpl_words',    JSON.stringify(words));
-  localStorage.setItem('itpl_mistakes', JSON.stringify(mistakeLog));
-  localStorage.setItem('itpl_dirstats', JSON.stringify(dirStats));
+  localStorage.setItem('itpl_words',       JSON.stringify(words));
+  localStorage.setItem('itpl_mistakes',    JSON.stringify(mistakeLog));
+  localStorage.setItem('itpl_dirstats',    JSON.stringify(dirStats));
+  localStorage.setItem('itpl_lastmistake', JSON.stringify(lastMistake));
+  localStorage.setItem('itpl_streak',      JSON.stringify({count: streakCount, lastDate: streakLastDate}));
 }
 
 // Words baked into the file at export time (overridden by localStorage if present)
@@ -1294,14 +1373,22 @@ const EMBEDDED_WORDS = /* EMBEDDED_WORDS */[{"it":"buongiorno","pl":"dzien dobry
 
 function load() {
   try {
-    const w = localStorage.getItem('itpl_words');
-    const m = localStorage.getItem('itpl_mistakes');
-    const d = localStorage.getItem('itpl_dirstats');
+    const w  = localStorage.getItem('itpl_words');
+    const m  = localStorage.getItem('itpl_mistakes');
+    const d  = localStorage.getItem('itpl_dirstats');
+    const lm = localStorage.getItem('itpl_lastmistake');
+    const st = localStorage.getItem('itpl_streak');
     // localStorage takes priority; fall back to embedded words baked into the file
     if (w) words      = JSON.parse(w);
     else if (EMBEDDED_WORDS) words = EMBEDDED_WORDS;
-    if (m) mistakeLog = JSON.parse(m);
-    if (d) dirStats   = JSON.parse(d);
+    if (m)  mistakeLog  = JSON.parse(m);
+    if (d)  dirStats    = JSON.parse(d);
+    if (lm) lastMistake = JSON.parse(lm);
+    if (st) {
+      const parsed = JSON.parse(st);
+      streakCount    = parsed.count || 0;
+      streakLastDate = parsed.lastDate || null;
+    }
   } catch(e) {}
   if (!dirStats['it-pl']) dirStats['it-pl'] = {correct:0, wrong:0};
   if (!dirStats['pl-it']) dirStats['pl-it'] = {correct:0, wrong:0};
@@ -1327,6 +1414,118 @@ function exportFile() {
   } catch(e) {
     alert('Eksport nie powiódł się: ' + e.message);
   }
+}
+
+// ── CSV export / import (word list only) ───────────────────────────────────
+function csvEscape(field) {
+  const str = String(field ?? '');
+  if (/[",\r\n]/.test(str)) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+async function exportCSV() {
+  if (!words.length) { alert('Brak słów do eksportu!'); return; }
+  const rows = [['Włoski', 'Polski', 'Kategoria'], ...words.map(w => [w.it, w.pl, w.cat || ''])];
+  const csv  = rows.map(r => r.map(csvEscape).join(',')).join('\r\n');
+  const filename = 'wloski-polski-slowka.csv';
+  // BOM so Excel opens Polish/Italian diacritics correctly
+  const blob = new Blob(['\uFEFF' + csv], {type: 'text/csv'});
+
+  // iOS / mobile Safari: use native share sheet ("Zapisz do Plików", AirDrop, itd.)
+  // — the classic <a download> link is unreliable on iOS Safari.
+  try {
+    if (typeof File !== 'undefined' && navigator.canShare) {
+      const file = new File([blob], filename, {type: 'text/csv'});
+      if (navigator.canShare({files: [file]})) {
+        await navigator.share({files: [file], title: filename});
+        return;
+      }
+    }
+  } catch (e) {
+    // User cancelled the share sheet, or share failed — don't also trigger a fallback download.
+    if (e && e.name === 'AbortError') return;
+  }
+
+  // Desktop / older browsers: classic download link
+  if (window.navigator && window.navigator.msSaveOrOpenBlob) {
+    window.navigator.msSaveOrOpenBlob(blob, filename);
+    return;
+  }
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.style.display = 'none';
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 300);
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (line[i + 1] === '"') { cur += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        cur += ch;
+      }
+    } else {
+      if (ch === '"') { inQuotes = true; }
+      else if (ch === ',') { result.push(cur); cur = ''; }
+      else { cur += ch; }
+    }
+  }
+  result.push(cur);
+  return result;
+}
+
+function parseCSV(text) {
+  const lines = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n').filter(l => l.length > 0);
+  return lines.map(parseCSVLine);
+}
+
+function handleCSVImport(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const rows = parseCSV(e.target.result);
+      let added = 0;
+      rows.forEach((cols, idx) => {
+        if (cols.length < 2) return;
+        const it  = (cols[0] || '').trim();
+        const pl  = (cols[1] || '').trim();
+        const cat = (cols[2] || '').trim();
+        // Skip a header row like "Włoski,Polski,Kategoria"
+        if (idx === 0 && /^w[łl]oski$/i.test(it)) return;
+        if (!it || !pl) return;
+        if (!words.some(w => w.it.toLowerCase() === it.toLowerCase())) {
+          words.push({it, pl, cat});
+          added++;
+        }
+      });
+      save();
+      renderWordList();
+      updateCategoryOptions();
+      alert('Zaimportowano ' + added + ' nowych par słów z pliku CSV.');
+    } catch (err) {
+      alert('Nie udało się wczytać pliku CSV: ' + err.message);
+    }
+  };
+  reader.onerror = () => alert('Nie udało się odczytać pliku.');
+  reader.readAsText(file, 'UTF-8');
+  event.target.value = ''; // allow re-importing the same file later
 }
 
 // ── Sample data ────────────────────────────────────────────────────────────
@@ -1355,16 +1554,18 @@ function loadSamples() {
 
 // ── Word list ─────────────────────────────────────────────────────────────
 function addWord() {
-  const it = document.getElementById('in-it').value.trim();
-  const pl = document.getElementById('in-pl').value.trim();
+  const it  = document.getElementById('in-it').value.trim();
+  const pl  = document.getElementById('in-pl').value.trim();
+  const cat = document.getElementById('in-cat').value.trim();
   if (!it || !pl) { alert('Wpisz oba pola.'); return; }
   if (words.some(w => w.it.toLowerCase() === it.toLowerCase())) {
     alert('To słowo już istnieje na liście.');
     return;
   }
-  words.push({it, pl});
+  words.push({it, pl, cat});
   save();
   renderWordList();
+  updateCategoryOptions();
   document.getElementById('in-it').value = '';
   document.getElementById('in-pl').value = '';
   document.getElementById('in-it').focus();
@@ -1438,6 +1639,8 @@ function renderWordList() {
   const expandBtn = document.getElementById('words-expand-btn');
   const searchClear = document.getElementById('word-search-clear');
 
+  updateCategoryOptions();
+
   if (!count) {
     empty.style.display     = 'block';
     table.style.display     = 'none';
@@ -1451,24 +1654,29 @@ function renderWordList() {
   const rawQuery = document.getElementById('word-search').value.trim();
   searchClear.style.display = rawQuery ? 'block' : 'none';
   const query = normalize(rawQuery);
+  const catFilter = document.getElementById('cat-filter').value;
 
   // Keep original array index attached so edit/delete buttons still target the right word
   let indexed = words.map((w, i) => ({ ...w, idx: i }));
   if (query) {
     indexed = indexed.filter(w => normalize(w.it).includes(query) || normalize(w.pl).includes(query));
   }
+  if (catFilter) {
+    indexed = indexed.filter(w => (w.cat || '') === catFilter);
+  }
 
-  const isSearching = !!query;
-  const shouldCollapse = !isSearching && !wordListExpanded && indexed.length > WORD_LIST_COLLAPSE_LIMIT;
+  const isFiltered = !!query || !!catFilter;
+  const shouldCollapse = !isFiltered && !wordListExpanded && indexed.length > WORD_LIST_COLLAPSE_LIMIT;
   const visible = shouldCollapse ? indexed.slice(0, WORD_LIST_COLLAPSE_LIMIT) : indexed;
 
   if (!indexed.length) {
-    tbody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:var(--text-muted); padding:1.5rem;">Brak wyników dla „${esc(rawQuery)}"</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:var(--text-muted); padding:1.5rem;">Brak wyników${rawQuery ? ' dla „' + esc(rawQuery) + '"' : ''}</td></tr>`;
   } else {
     tbody.innerHTML = visible.map(w =>
       `<tr id="row-${w.idx}">
-        <td id="cell-it-${w.idx}">${esc(w.it)}</td>
-        <td id="cell-pl-${w.idx}">${esc(w.pl)}</td>
+        <td id="cell-it-${w.idx}">${wordCellHTML(w.it, 'it-IT')}</td>
+        <td id="cell-pl-${w.idx}">${wordCellHTML(w.pl, 'pl-PL')}</td>
+        <td id="cell-cat-${w.idx}">${w.cat ? `<span class="cat-pill">${esc(w.cat)}</span>` : ''}</td>
         <td style="white-space:nowrap;">
           <button class="edit-btn" onclick="editWord(${w.idx})" title="Edytuj">✎</button>
           <button class="del-btn"  onclick="deleteWord(${w.idx})" title="Usuń">✕</button>
@@ -1477,13 +1685,52 @@ function renderWordList() {
     ).join('');
   }
 
-  if (!isSearching && indexed.length > WORD_LIST_COLLAPSE_LIMIT) {
+  if (!isFiltered && indexed.length > WORD_LIST_COLLAPSE_LIMIT) {
     expandRow.style.display = 'block';
     expandBtn.textContent = wordListExpanded
       ? '▲ Zwiń listę'
       : `▼ Rozwiń całą listę (${indexed.length})`;
   } else {
     expandRow.style.display = 'none';
+  }
+}
+
+function getCategories() {
+  return [...new Set(words.map(w => (w.cat || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pl'));
+}
+
+function updateCategoryOptions() {
+  const cats = getCategories();
+
+  // Datalist for the add-word input
+  const datalist = document.getElementById('cat-list');
+  if (datalist) datalist.innerHTML = cats.map(c => `<option value="${escAttr(c)}"></option>`).join('');
+
+  // Filter dropdown in the word list — preserve current selection if still valid
+  const filterSel = document.getElementById('cat-filter');
+  if (filterSel) {
+    const current = filterSel.value;
+    filterSel.innerHTML = '<option value="">🏷️ Wszystkie kategorie</option>' +
+      cats.map(c => `<option value="${escAttr(c)}">${esc(c)}</option>`).join('');
+    if (cats.includes(current)) filterSel.value = current;
+  }
+
+  // Quiz category filter
+  const quizSel = document.getElementById('quiz-cat-filter');
+  if (quizSel) {
+    const current = quizSel.value;
+    quizSel.innerHTML = '<option value="">🏷️ Wszystkie kategorie</option>' +
+      cats.map(c => `<option value="${escAttr(c)}">${esc(c)}</option>`).join('');
+    if (cats.includes(current)) quizSel.value = current;
+  }
+
+  // Learning mode category filter
+  const learnSel = document.getElementById('learn-cat-filter');
+  if (learnSel) {
+    const current = learnSel.value;
+    learnSel.innerHTML = '<option value="">🏷️ Wszystkie kategorie</option>' +
+      cats.map(c => `<option value="${escAttr(c)}">${esc(c)}</option>`).join('');
+    if (cats.includes(current)) learnSel.value = current;
   }
 }
 
@@ -1500,8 +1747,10 @@ function editWord(i) {
     `<input class="edit-input" id="edit-it-${i}" value="${esc(words[i].it)}" onkeydown="editKey(event,${i})">`;
   document.getElementById('cell-pl-' + i).innerHTML =
     `<input class="edit-input" id="edit-pl-${i}" value="${esc(words[i].pl)}" onkeydown="editKey(event,${i})">`;
+  document.getElementById('cell-cat-' + i).innerHTML =
+    `<input class="edit-input" id="edit-cat-${i}" value="${esc(words[i].cat || '')}" list="cat-list" placeholder="—" onkeydown="editKey(event,${i})">`;
   // Replace action buttons
-  row.cells[2].innerHTML =
+  row.cells[3].innerHTML =
     `<button class="save-btn" onclick="saveWord(${i})">✔ Zapisz</button>
      <button class="cancel-btn" onclick="cancelEdit(${i})">✕</button>`;
   document.getElementById('edit-it-' + i).focus();
@@ -1513,14 +1762,15 @@ function editKey(e, i) {
 }
 
 function saveWord(i) {
-  const newIt = document.getElementById('edit-it-' + i).value.trim();
-  const newPl = document.getElementById('edit-pl-' + i).value.trim();
+  const newIt  = document.getElementById('edit-it-' + i).value.trim();
+  const newPl  = document.getElementById('edit-pl-' + i).value.trim();
+  const newCat = document.getElementById('edit-cat-' + i).value.trim();
   if (!newIt || !newPl) { alert('Oba pola muszą być wypełnione.'); return; }
   // Check for duplicate (ignore self)
   if (words.some((w, j) => j !== i && w.it.toLowerCase() === newIt.toLowerCase())) {
     alert('Takie słowo już istnieje na liście.'); return;
   }
-  words[i] = { it: newIt, pl: newPl };
+  words[i] = { it: newIt, pl: newPl, cat: newCat };
   save();
   renderWordList();
 }
@@ -1529,15 +1779,45 @@ function cancelEdit(i) {
   const row = document.getElementById('row-' + i);
   if (!row) return;
   row.classList.remove('editing');
-  document.getElementById('cell-it-' + i).innerHTML = esc(words[i].it);
-  document.getElementById('cell-pl-' + i).innerHTML = esc(words[i].pl);
-  row.cells[2].innerHTML =
+  document.getElementById('cell-it-' + i).innerHTML  = wordCellHTML(words[i].it, 'it-IT');
+  document.getElementById('cell-pl-' + i).innerHTML  = wordCellHTML(words[i].pl, 'pl-PL');
+  document.getElementById('cell-cat-' + i).innerHTML = words[i].cat ? `<span class="cat-pill">${esc(words[i].cat)}</span>` : '';
+  row.cells[3].innerHTML =
     `<button class="edit-btn" onclick="editWord(${i})" title="Edytuj">✎</button>
      <button class="del-btn"  onclick="deleteWord(${i})" title="Usuń">✕</button>`;
 }
 
 function esc(s) {
   return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function escAttr(s) {
+  return esc(s).replace(/"/g, '&quot;');
+}
+
+// ── Text-to-speech (wymowa) ─────────────────────────────────────────────
+function speak(text, lang) {
+  if (!('speechSynthesis' in window)) {
+    alert('Twoja przeglądarka nie obsługuje odczytywania na głos.');
+    return;
+  }
+  try {
+    window.speechSynthesis.cancel(); // stop anything currently speaking
+    const utter = new SpeechSynthesisUtterance(text);
+    utter.lang  = lang;
+    utter.rate  = 0.9;
+    window.speechSynthesis.speak(utter);
+  } catch (e) {
+    alert('Nie udało się odtworzyć wymowy.');
+  }
+}
+
+function speakFromButton(btn) {
+  speak(btn.dataset.text, btn.dataset.lang);
+}
+
+function wordCellHTML(text, lang) {
+  return `${esc(text)} <button class="speak-btn" data-text="${escAttr(text)}" data-lang="${lang}" onclick="speakFromButton(this)" title="Odsłuchaj">🔊</button>`;
 }
 
 // ── Mode ──────────────────────────────────────────────────────────────────
@@ -1587,6 +1867,21 @@ function getLimit() {
   return el ? (parseInt(el.value) || 0) : 0;
 }
 
+function getQuizCategoryFilter() {
+  const el = document.getElementById('quiz-cat-filter');
+  return el ? el.value : '';
+}
+
+function getLearnCategoryFilter() {
+  const el = document.getElementById('learn-cat-filter');
+  return el ? el.value : '';
+}
+
+function onLearnCategoryChange() {
+  learnCurrent = null;
+  nextLearnWord();
+}
+
 // ── Learning mode (multiple choice) ─────────────────────────────────────
 function startLearningMode() {
   if (words.length < 3) { alert('Potrzeba przynajmniej 3 różnych słów, aby uruchomić tryb nauki.'); return; }
@@ -1619,8 +1914,13 @@ function updateLearnStats() {
 }
 
 function nextLearnWord() {
-  let pool = words;
-  if (learnCurrent && words.length > 1) pool = words.filter(w => w.it !== learnCurrent.it);
+  const cat = getLearnCategoryFilter();
+  let basePool = cat ? words.filter(w => (w.cat || '') === cat) : words;
+  if (!basePool.length) basePool = words;
+
+  let pool = basePool;
+  if (learnCurrent && basePool.length > 1) pool = basePool.filter(w => w.it !== learnCurrent.it);
+  if (!pool.length) pool = basePool;
   learnCurrent = pool[Math.floor(Math.random() * pool.length)];
 
   const qField = learnMode === 'it-pl' ? 'it' : 'pl';
@@ -1632,6 +1932,7 @@ function nextLearnWord() {
   document.getElementById('learn-feedback').className   = 'feedback';
 
   const correctNorm = normalize(learnCurrent[aField]);
+  // Distractors are drawn from the full word list so there are always enough options
   let distractPool = [...new Set(words.map(w => w[aField]))].filter(val => normalize(val) !== correctNorm);
   distractPool = distractPool.sort(() => Math.random() - 0.5).slice(0, 2);
   const options = [learnCurrent[aField], ...distractPool].sort(() => Math.random() - 0.5);
@@ -1645,8 +1946,16 @@ function nextLearnWord() {
   });
 }
 
+function speakCurrentLearnWord() {
+  if (!learnCurrent) return;
+  const qField = learnMode === 'it-pl' ? 'it' : 'pl';
+  const lang   = learnMode === 'it-pl' ? 'it-IT' : 'pl-PL';
+  speak(learnCurrent[qField], lang);
+}
+
 function checkLearnAnswer(btn, selected) {
   if (btn.disabled) return;
+  recordDailyActivity();
   const aField    = learnMode === 'it-pl' ? 'pl' : 'it';
   const isCorrect = normalize(selected) === normalize(learnCurrent[aField]);
   if (isCorrect) {
@@ -1673,17 +1982,27 @@ function checkLearnAnswer(btn, selected) {
 }
 
 function restartQuiz() {
-  const limit  = getLimit();
-  const pool   = [...words].sort(() => Math.random() - 0.5);
+  const limit = getLimit();
+  const cat   = getQuizCategoryFilter();
+  let basePool = cat ? words.filter(w => (w.cat || '') === cat) : words;
+  if (!basePool.length) {
+    alert('Brak słów w wybranej kategorii.');
+    document.getElementById('quiz-cat-filter').value = '';
+    basePool = words;
+  }
+  const pool   = [...basePool].sort(() => Math.random() - 0.5);
   queue        = limit > 0 ? pool.slice(0, limit) : pool;
   sessionTotal = queue.length;
   correct  = 0;
   wrong    = 0;
   history  = [];
   document.getElementById('quiz-mode-banner').style.display = 'none';
-  if (limit > 0 && limit < words.length) {
+  const bannerParts = [];
+  if (cat && basePool.length) bannerParts.push('kategoria: ' + cat);
+  if (limit > 0 && limit < basePool.length) bannerParts.push(queue.length + ' losowych słów z ' + basePool.length);
+  if (bannerParts.length) {
     document.getElementById('quiz-mode-banner').style.display = 'flex';
-    document.getElementById('quiz-mode-banner').textContent   = '🎯 Tryb: ' + queue.length + ' losowych słów z ' + words.length;
+    document.getElementById('quiz-mode-banner').textContent   = '🎯 Tryb: ' + bannerParts.join(', ');
   }
   document.getElementById('quiz-done').style.display    = 'none';
   document.getElementById('quiz-content').style.display = 'block';
@@ -1711,6 +2030,13 @@ function nextWord(first) {
   inp.focus();
 }
 
+function speakCurrentQuizWord() {
+  if (!current) return;
+  const text = mode === 'it-pl' ? current.it : current.pl;
+  const lang = mode === 'it-pl' ? 'it-IT' : 'pl-PL';
+  speak(text, lang);
+}
+
 function normalize(s) {
   return s.trim().toLowerCase()
     .replace(/ą/g,'a').replace(/ć/g,'c').replace(/ę/g,'e')
@@ -1726,6 +2052,7 @@ function normalize(s) {
 
 function checkAnswer() {
   if (answered) return;
+  recordDailyActivity();
   const inp       = document.getElementById('answer');
   const userRaw   = inp.value.trim();
   const correct_a = mode === 'it-pl' ? current.pl : current.it;
@@ -1757,6 +2084,7 @@ function checkAnswer() {
 
 function skipWord() {
   if (answered) return;
+  recordDailyActivity();
   wrong++;
   dirStats[mode].wrong++;
   save();
@@ -1804,13 +2132,80 @@ function updateProgress() {
   document.getElementById('progress').style.width = pct + '%';
 }
 
+// ── Streak (dni z rzędu) ─────────────────────────────────────────────────
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function daysBetween(dateStrA, dateStrB) {
+  const a = new Date(dateStrA + 'T00:00:00');
+  const b = new Date(dateStrB + 'T00:00:00');
+  return Math.round((b - a) / 86400000);
+}
+
+function recordDailyActivity() {
+  const today = todayStr();
+  if (streakLastDate === today) return; // already counted today
+  if (streakLastDate && daysBetween(streakLastDate, today) === 1) {
+    streakCount++; // practiced yesterday too — extend the streak
+  } else {
+    streakCount = 1; // first day, or the streak had already broken
+  }
+  streakLastDate = today;
+  save();
+  updateStreakUI();
+}
+
+// What to display without mutating stored state (a streak stays "alive" until a day is fully skipped)
+function getDisplayStreak() {
+  if (!streakLastDate || !streakCount) return 0;
+  const today = todayStr();
+  if (streakLastDate === today) return streakCount;
+  if (daysBetween(streakLastDate, today) === 1) return streakCount; // still practiced yesterday, not yet today
+  return 0; // a full day was skipped — streak broken
+}
+
+function updateStreakUI() {
+  const widget = document.getElementById('streak-widget');
+  if (!widget) return;
+  const display = getDisplayStreak();
+  if (display <= 0) { widget.style.display = 'none'; return; }
+  widget.style.display = 'flex';
+  document.getElementById('streak-count').textContent = display;
+  const practicedToday = streakLastDate === todayStr();
+  document.getElementById('streak-sub').textContent = display === 1
+    ? (practicedToday ? 'dzień z rzędu — świetny start! 🎉' : 'dzień z rzędu — ćwicz dziś, aby kontynuować')
+    : (practicedToday ? 'dni z rzędu — super, dziś już ćwiczyłeś! 🎉' : 'dni z rzędu — ćwicz dziś, aby kontynuować');
+}
+
 // ── Mistakes ──────────────────────────────────────────────────────────────
 function recordMistake(it, pl, userAns) {
   if (!mistakeLog[it]) mistakeLog[it] = {it, pl, count: 0, attempts: []};
   mistakeLog[it].count++;
   if (userAns) mistakeLog[it].attempts.push(userAns);
+  lastMistake = {it, pl};
+  lastMistakeDismissed = false;
   save();
   updateMistakeBadge();
+  updateLastMistakeUI();
+}
+
+function dismissLastMistake() {
+  lastMistakeDismissed = true;
+  updateLastMistakeUI();
+}
+
+function updateLastMistakeUI() {
+  const widgets = document.querySelectorAll('.last-mistake-widget');
+  widgets.forEach(w => {
+    if (!lastMistake || lastMistakeDismissed) { w.style.display = 'none'; return; }
+    w.style.display = 'flex';
+    const wordEl = w.querySelector('.last-mistake-word');
+    const ansEl  = w.querySelector('.last-mistake-answer');
+    if (wordEl) wordEl.textContent = lastMistake.it;
+    if (ansEl)  ansEl.textContent  = lastMistake.pl;
+  });
 }
 
 function updateMistakeBadge() {
@@ -1822,9 +2217,11 @@ function updateMistakeBadge() {
 
 function clearMistakes() {
   if (!confirm('Wyczyścić historię błędów?')) return;
-  mistakeLog = {};
+  mistakeLog  = {};
+  lastMistake = null;
   save();
   updateMistakeBadge();
+  updateLastMistakeUI();
   renderMistakes();
 }
 
@@ -1860,10 +2257,10 @@ function renderMistakes() {
     const label = cnt === 1 ? 'błąd' : cnt < 5 ? 'błędy' : 'błędów';
     return `<div class="mistake-card">
       <div class="mistake-top">
-        <div class="mistake-word">${esc(m.it)}</div>
+        <div class="mistake-word">${esc(m.it)} <button class="speak-btn" data-text="${escAttr(m.it)}" data-lang="it-IT" onclick="speakFromButton(this)" title="Odsłuchaj">🔊</button></div>
         <div class="mistake-count">${cnt} ${label}</div>
       </div>
-      <div class="mistake-correct">✓ ${esc(m.pl)}</div>
+      <div class="mistake-correct">✓ ${esc(m.pl)} <button class="speak-btn" data-text="${escAttr(m.pl)}" data-lang="pl-PL" onclick="speakFromButton(this)" title="Odsłuchaj">🔊</button></div>
       ${unique.length ? `<div style="font-size:12px;color:var(--text-muted);margin-bottom:4px;">Twoje odpowiedzi:</div>
       <div class="mistake-attempts">${unique.map(a=>`<span class="attempt-pill">${esc(a)}</span>`).join('')}</div>` : ''}
     </div>`;
@@ -2029,6 +2426,8 @@ loadTheme();
 load();
 renderWordList();
 updateMistakeBadge();
+updateLastMistakeUI();
+updateStreakUI();
 switchTab('home');
 
 // Hide splash after 3 seconds
@@ -2039,4 +2438,3 @@ setTimeout(() => {
 
 
 </body></html>
-
