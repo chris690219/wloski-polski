@@ -1,0 +1,14 @@
+rules_version = '2';
+
+// Włoski z Polskim: każdy użytkownik może czytać i zapisywać wyłącznie swój postęp.
+// Wklej w konsoli Firebase: Firestore Database → Rules → Publish.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /progress/{uid} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+                            && request.resource.data.state is string
+                            && request.resource.data.state.size() < 900000;
+    }
+  }
+}

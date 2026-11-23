@@ -1,10 +1,10 @@
 /* Service worker: aplikacja działa offline.
  * Strategia „stale-while-revalidate”: najpierw z pamięci podręcznej, w tle pobiera nowszą wersję.
  * Po większych zmianach podbij VERSION. */
-const VERSION = 'wp-v2';
+const VERSION = 'wp-v4';
 const ASSETS = [
   './', 'index.html', 'css/style.css',
-  'js/course.js', 'js/core.js', 'js/lesson.js', 'js/app.js',
+  'js/config.js', 'js/course.js', 'js/core.js', 'js/sync.js', 'js/lesson.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
 

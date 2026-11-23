@@ -46,6 +46,9 @@ function tokenize(sentence) {
 
 function makeExercise(type, item, pool, extra = {}) {
   const ex = { type, item, ...extra };
+  if (type === 'speak' && !Recog.enabled) {
+    return item.sentence ? makeExercise('build', item, pool) : makeExercise('type', item, pool, { dir: 'pl-it' });
+  }
   if (type === 'listen' || type === 'listenBuild') {
     if (!Speech.supported) return makeExercise(type === 'listen' ? 'type' : 'build', item, pool, { dir: 'pl-it' });
   }
@@ -71,6 +74,7 @@ function makeExercise(type, item, pool, extra = {}) {
 /** Losowe ćwiczenie „praktyczne” dla słowa. */
 function practiceExercise(item, pool, preferHard) {
   const r = Math.random();
+  if (Recog.enabled && r < 0.12) return makeExercise('speak', item, pool);
   if (item.sentence) {
     return makeExercise(r < 0.35 ? 'listenBuild' : r < 0.55 ? 'schoice' : 'build', item, pool);
   }
@@ -105,6 +109,12 @@ function buildLessonSession(lesson) {
   // 4. zdania
   const sents = shuffle(lesson.sentences);
   sents.forEach((s, i) => exs.push(makeExercise(i === 0 ? 'build' : i === 1 ? 'listenBuild' : 'schoice', s, pool)));
+
+  // 5. mówienie: jedno słowo i jedno zdanie
+  if (Recog.enabled) {
+    exs.push(makeExercise('speak', pick(words), pool));
+    if (sents.length) exs.push(makeExercise('speak', pick(sents), pool));
+  }
 
   // wprowadzenia i pierwsze pytania zostawiamy na początku, resztę mieszamy
   const introCount = fresh.length * 2;
@@ -149,6 +159,7 @@ const Session = {
   close(skipConfirm) {
     if (!skipConfirm && this.doneSlots.size > 0 && !confirm('Przerwać? Postęp tej lekcji nie zostanie zapisany.')) return;
     if (Speech.supported) speechSynthesis.cancel();
+    this.stopListening();
     $('#lesson').classList.add('hidden');
     document.body.classList.remove('in-lesson');
     this.current = null;
@@ -168,7 +179,25 @@ const Session = {
     $('#lessonCombo').textContent = this.combo >= 3 ? `🔥 ${this.combo}` : '';
   },
 
+  stopListening() {
+    this.listening?.stop();
+    this.listening = null;
+  },
+
+  /** „Nie mogę teraz mówić”: pomija ćwiczenia mówienia bez kary na 15 minut. */
+  skipSpeaking() {
+    Recog.muteFor(15);
+    this.stopListening();
+    const later = this.queue.slice(this.idx).filter(e => e.type === 'speak');
+    this.queue = [...this.queue.slice(0, this.idx), ...this.queue.slice(this.idx).filter(e => e.type !== 'speak')];
+    const slots = new Set([this.current.slot, ...later.map(e => e.slot)]);
+    this.total -= slots.size;
+    toast('Ćwiczenia mówienia wyłączone na 15 minut.');
+    this.next();
+  },
+
   next() {
+    this.stopListening();
     this.updateProgress();
     if (this.idx >= this.queue.length) return this.finish();
     this.current = this.queue[this.idx++];
@@ -184,7 +213,7 @@ const Session = {
     btn.textContent = 'Sprawdź';
     btn.disabled = true;
     btn.className = 'btn primary big';
-    $('#skipBtn').classList.toggle('hidden', ['intro', 'match'].includes(this.current.type));
+    $('#skipBtn').classList.toggle('hidden', ['intro', 'match', 'speak'].includes(this.current.type));
     Exercises[this.current.type].render(this.current, body, this);
     body.firstElementChild?.classList.add('enter');
   },
@@ -258,6 +287,8 @@ const Session = {
   },
 
   finish() {
+    // nic nie zostało rozwiązane (np. pominięto wszystkie ćwiczenia mówienia) – bez nagrody
+    if (!this.answered) return this.close(true);
     const S = Storage.state;
     const results = Object.values(this.results).filter(r => r.seen);
     results.forEach(r => srsUpdate(r.item.key, !r.wrong));
@@ -566,6 +597,72 @@ const Exercises = {
       $('#checkBtn').textContent = 'Połącz wszystkie pary';
     },
   },
+};
+Exercises.speak = {
+  render(ex, body, session) {
+    const it = ex.item.sentence ? ex.item.it : mainVariant(ex.item.it);
+    ex.tries = 0;
+    body.innerHTML = `
+      <div class="ex">
+        <div class="ex-kind">🎤 Powiedz na głos</div>
+        <div class="prompt ${ex.item.sentence ? 'sentence' : ''}">${speakBtn(it)}<div><span lang="it">${esc(it)}</span>
+          <div class="prompt-sub">${esc(mainVariant(ex.item.pl))}</div></div></div>
+        <div class="mic-wrap">
+          <button class="mic" aria-label="Mów">🎤</button>
+          <div class="mic-label">Dotknij i powiedz po włosku</div>
+          <div class="heard" aria-live="polite"></div>
+        </div>
+        <button class="link-btn" id="cantSpeak">Nie mogę teraz mówić</button>
+      </div>`;
+    maybeAutoplay(it);
+    const mic = $('.mic', body), label = $('.mic-label', body), heard = $('.heard', body);
+    const target = ex.item.sentence ? ex.item.it : ex.item.it;
+    const threshold = ex.item.sentence ? 0.72 : 0.8;
+    const reset = () => { mic.classList.remove('listening'); label.textContent = 'Dotknij i powiedz po włosku'; };
+    mic.addEventListener('click', () => {
+      if (session.checked) return;
+      if (session.listening) { session.stopListening(); reset(); return; }
+      if (Speech.supported) speechSynthesis.cancel();
+      mic.classList.add('listening');
+      label.textContent = 'Słucham… (dotknij, aby przerwać)';
+      heard.textContent = '';
+      session.listening = Recog.listen({
+        onInterim: t => { heard.textContent = t; },
+        onFinal: alts => {
+          session.listening = null;
+          reset();
+          const scored = alts.map(a => ({ a, s: speechSimilarity(a, target) })).sort((x, y) => y.s - x.s);
+          const best = scored[0] || { a: '', s: 0 };
+          ex.heard = best.a;
+          ex.score = best.s;
+          if (best.s >= threshold) { session.setReady(true); return session.primary(); }
+          ex.tries++;
+          if (ex.tries >= 2) { session.setReady(true); return session.primary(); }
+          heard.innerHTML = `Usłyszałem: „${esc(best.a)}”. <b>Spróbuj jeszcze raz.</b>`;
+          Sfx.play('bad');
+        },
+        onError: err => {
+          session.listening = null;
+          reset();
+          if (err === 'aborted') return;
+          heard.innerHTML = err === 'not-allowed' || err === 'service-not-allowed'
+            ? 'Brak dostępu do mikrofonu. Zezwól na mikrofon w przeglądarce albo wybierz „Nie mogę teraz mówić”.'
+            : err === 'network' ? 'Rozpoznawanie mowy wymaga internetu.'
+            : 'Nic nie usłyszałem – spróbuj jeszcze raz.';
+        },
+      });
+    });
+    $('#cantSpeak', body).addEventListener('click', () => session.skipSpeaking());
+    $('#checkBtn').textContent = 'Mów do mikrofonu';
+  },
+  check(ex) {
+    const ok = (ex.score || 0) >= (ex.item.sentence ? 0.72 : 0.8);
+    const it = ex.item.sentence ? ex.item.it : mainVariant(ex.item.it);
+    return ok
+      ? { ok, note: `Usłyszałem: „${esc(ex.heard)}”` }
+      : { ok, correct: `${it} (usłyszałem: „${ex.heard || '…'}”)` };
+  },
+  correctText: ex => (ex.item.sentence ? ex.item.it : mainVariant(ex.item.it)),
 };
 Exercises.listenBuild = {
   render: (ex, body, session) => Exercises.build.render(ex, body, session, true),
