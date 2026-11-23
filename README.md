@@ -1,6 +1,6 @@
 # Włoski z Polskim 🇮🇹🇵🇱
 
-Darmowa aplikacja do nauki włoskiego dla Polaków, w stylu Duolingo. Działa w przeglądarce, offline, bez kont i bez serwera.
+Darmowa aplikacja do nauki włoskiego dla Polaków, w stylu Duolingo. Działa w przeglądarce, także offline. Konta z synchronizacją są opcjonalne.
 
 ## Co potrafi
 
@@ -8,6 +8,8 @@ Darmowa aplikacja do nauki włoskiego dla Polaków, w stylu Duolingo. Działa w 
 - **Ścieżka nauki**: kolejne lekcje odblokowują się po ukończeniu poprzednich (można to wyłączyć w ustawieniach).
 - **8 typów ćwiczeń**: nowe słowo, wybór odpowiedzi (IT→PL i PL→IT), łączenie par, pisanie tłumaczenia, dyktando (słuchanie), układanie zdania z kafelków, układanie zdania ze słuchu, wybór tłumaczenia zdania.
 - **Wymowa włoska** przez wbudowaną w przeglądarkę syntezę mowy, także w wolnym tempie 🐢.
+- **Ćwiczenia mówienia 🎤**: powiedz słowo lub zdanie na głos, a przeglądarka sprawdzi wymowę. Działa w Chrome, Edge i Safari (wymaga internetu i zgody na mikrofon). Można je wyłączyć w ustawieniach albo pominąć na 15 minut przyciskiem „Nie mogę teraz mówić”.
+- **Konta i synchronizacja ☁️** (opcjonalnie, przez Firebase): logowanie kontem Google lub linkiem z e-maila. Postęp synchronizuje się między telefonem a komputerem, a nauka bez internetu dalej działa.
 - **Wyrozumiałe sprawdzanie**: brak akcentu, brak polskiego znaku, brak rodzajnika lub drobna literówka nie są liczone jako błąd, ale aplikacja o nich przypomina.
 - **Powtórki z odstępami (system Leitnera)**: słowa wracają wtedy, gdy zaczynasz je zapominać. Do tego lista błędów, trening najsłabszych słów i trening słuchu.
 - **Motywacja**: XP, dzienny cel, seria dni 🔥 oraz wykres z ostatnich 7 dni.
@@ -28,11 +30,14 @@ Poprzednia wersja aplikacji jest w folderze [`klasyczna/`](klasyczna/). Słówka
 index.html            szkielet aplikacji
 css/style.css         wygląd (zmienne kolorów, tryb ciemny)
 js/course.js          TREŚĆ KURSU: jednostki, lekcje, słowa, zdania, wskazówki
-js/core.js            sprawdzanie odpowiedzi, zapis stanu, powtórki (SRS), mowa
+js/config.js          konfiguracja Firebase (puste = bez kont)
+js/core.js            sprawdzanie odpowiedzi, zapis stanu, powtórki (SRS), mowa, rozpoznawanie mowy
+js/sync.js            konta i synchronizacja (Firebase), scalanie postępu z kilku urządzeń
 js/lesson.js          generowanie ćwiczeń i przebieg lekcji
 js/app.js             ekrany: Nauka, Powtórki, Słówka, Profil
 sw.js                 service worker (tryb offline)
 manifest.webmanifest  instalacja jako aplikacja
+firestore.rules       reguły bezpieczeństwa bazy danych (do wklejenia w Firebase)
 klasyczna/            poprzednia wersja
 ```
 
@@ -44,6 +49,22 @@ Lekcje są w `js/course.js`. Słowo to `['włoski', 'polski', 'notatka (opcjonal
 
 Po większych zmianach podbij `VERSION` w `sw.js`, żeby telefony pobrały nową wersję.
 
-## Plany: konta i synchronizacja
+## Konta i synchronizacja (Firebase)
 
-Na razie postęp jest zapisany tylko w przeglądarce (`localStorage`). Cały stan to jeden obiekt JSON obsługiwany przez `Storage` w `js/core.js`. Aby dodać konta (np. Supabase lub Firebase), wystarczy podmienić `Storage.adapter` na taki, który zapisuje i wczytuje stan z serwera. Reszta aplikacji nie wymaga zmian.
+Bez konfiguracji aplikacja działa jak dotąd: postęp zostaje tylko w przeglądarce. Aby włączyć konta:
+
+1. Wejdź na [console.firebase.google.com](https://console.firebase.google.com) i wybierz projekt (albo utwórz nowy; Google Analytics nie jest potrzebne).
+2. **Project settings → General → Your apps → ikona `</>` (Web)**. Nadaj nazwę i zarejestruj aplikację (bez Firebase Hosting). Skopiuj wartości `apiKey`, `authDomain`, `projectId` i `appId` do pliku **`js/config.js`**.
+3. **Build → Authentication → Get started → Sign-in method**:
+   - włącz **Google**,
+   - włącz **Email/Password**, a w nim opcję **Email link (passwordless sign-in)**.
+4. **Authentication → Settings → Authorized domains → Add domain** i dodaj `chris690219.github.io` (adres Twojej strony na GitHub Pages).
+5. **Build → Firestore Database → Create database**. Wybierz *production mode* i lokalizację, np. `europe-central2 (Warsaw)`.
+6. W **Firestore → Rules** wklej zawartość pliku **`firestore.rules`** i kliknij **Publish**. Te reguły sprawiają, że każdy widzi i zmienia wyłącznie własny postęp.
+7. Zrób commit `js/config.js` na `main`. Po chwili w zakładce **Profil** pojawi się karta „Konto i synchronizacja”.
+
+Darmowy plan Firebase (Spark) w zupełności wystarczy: jedna synchronizacja to jeden odczyt i jeden zapis, a limit wynosi kilkadziesiąt tysięcy operacji dziennie.
+
+**Jak działa synchronizacja.** Aplikacja zapisuje wszystko najpierw w przeglądarce. Po zalogowaniu, kilka sekund po każdej zmianie, pobiera stan z chmury, scala go z lokalnym i zapisuje wynik w obu miejscach. Scalanie nie gubi postępu z żadnego urządzenia: XP liczone jest dzień po dniu, lekcje według najlepszego wyniku, a słowa według najnowszej powtórki. „Wyzeruj postęp” i „Wczytaj kopię” wygrywają ze starszymi danymi z chmury. Przy braku internetu synchronizacja odbywa się po odzyskaniu połączenia.
+
+Wartości w `js/config.js` są publiczne z założenia: Firebase przekazuje je każdej przeglądarce. Dane chronią reguły z `firestore.rules`.

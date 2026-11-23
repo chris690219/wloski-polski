@@ -153,8 +153,11 @@ function defaultState() {
     items: {},                       // { key: { box, due, right, wrong, last } }
     myWords: [],                     // [{ id, it, pl, cat }]
     answers: { right: 0, wrong: 0 },
-    settings: { goal: 20, sound: true, autoplay: true, rate: 0.9, unlockAll: false, theme: 'auto' },
+    settings: { goal: 20, sound: true, autoplay: true, rate: 0.9, unlockAll: false, theme: 'auto', speak: true },
     migratedClassic: false,
+    deletedWords: [],                // id usuniętych własnych słów (dla synchronizacji)
+    updatedAt: 0,                    // ms – ostatnia zmiana stanu
+    resetAt: 0,                      // ms – ostatnie wyzerowanie / wczytanie kopii
   };
 }
 
@@ -168,17 +171,35 @@ const Storage = {
     this.state = saved ? { ...base, ...saved, settings: { ...base.settings, ...(saved.settings || {}) }, streak: { ...base.streak, ...(saved.streak || {}) } } : base;
     return this.state;
   },
+  /** Zapis po zmianie przez użytkownika: oznacza czas zmiany i zleca synchronizację. */
   save() {
+    this.state.updatedAt = Date.now();
     clearTimeout(this._timer);
     this._timer = setTimeout(() => this.adapter.save(this.state), 150);
+    if (typeof Sync !== 'undefined') Sync.schedule();
   },
   saveNow() {
+    this.state.updatedAt = Date.now();
+    clearTimeout(this._timer);
+    this.adapter.save(this.state);
+    if (typeof Sync !== 'undefined') Sync.schedule();
+  },
+  /** Zapis lokalny bez oznaczania zmiany (np. po scaleniu z chmurą). */
+  persistLocal() {
     clearTimeout(this._timer);
     this.adapter.save(this.state);
   },
-  replace(newState) {
+  /** Podmienia stan „w miejscu”, żeby istniejące referencje nadal działały. */
+  assign(newState) {
     const base = defaultState();
-    this.state = { ...base, ...newState, settings: { ...base.settings, ...(newState.settings || {}) } };
+    const next = { ...base, ...newState, settings: { ...base.settings, ...(newState.settings || {}) }, streak: { ...base.streak, ...(newState.streak || {}) } };
+    for (const k of Object.keys(this.state)) delete this.state[k];
+    Object.assign(this.state, next);
+  },
+  /** Zastąpienie całego postępu (wyzerowanie, wczytanie kopii) – wygrywa także z danymi w chmurze. */
+  replace(newState) {
+    this.assign(newState);
+    this.state.resetAt = Date.now();
     this.saveNow();
   },
 };
@@ -210,7 +231,7 @@ function addMyWords(list) {
     const k = normLoose(it) + '|' + normLoose(pl);
     if (existing.has(k)) continue;
     existing.add(k);
-    S.myWords.push({ id: uid(), it, pl, cat: (w.cat || '').trim() });
+    S.myWords.push({ id: uid(), it, pl, cat: (w.cat || '').trim(), t: Date.now() });
     n++;
   }
   Storage.save();
@@ -262,6 +283,7 @@ function srsUpdate(key, correct) {
   }
   r.due = addDays(todayStr(), correct ? SRS_INTERVALS[r.box] : 0);
   r.last = todayStr();
+  r.t = Date.now();
   S.items[key] = r;
 }
 
@@ -340,6 +362,60 @@ const Speech = {
     } catch (e) { console.warn(e); }
   },
 };
+
+/* ---------- rozpoznawanie mowy (ćwiczenia mówienia) ---------- */
+const Recog = {
+  Ctor: window.SpeechRecognition || window.webkitSpeechRecognition || null,
+  get supported() { return !!this.Ctor; },
+  /** Ćwiczenia mówienia są włączone i nie wyciszone („Nie mogę teraz mówić”). */
+  get enabled() {
+    if (!this.supported || !Storage.state.settings.speak) return false;
+    let until = 0;
+    try { until = +localStorage.getItem('wp_speak_mute') || 0; } catch { /* brak */ }
+    return Date.now() > until;
+  },
+  muteFor(minutes) {
+    try { localStorage.setItem('wp_speak_mute', String(Date.now() + minutes * 60000)); } catch { /* brak */ }
+  },
+  /** Start nasłuchu; zwraca obiekt z metodą stop(). */
+  listen({ onInterim, onFinal, onError, onEnd }) {
+    const r = new this.Ctor();
+    r.lang = 'it-IT';
+    r.interimResults = true;
+    r.maxAlternatives = 5;
+    r.continuous = false;
+    let done = false;
+    r.onresult = e => {
+      const res = e.results[e.results.length - 1];
+      const alts = [...res].map(a => a.transcript.trim()).filter(Boolean);
+      if (done) return;
+      if (res.isFinal) { done = true; clearTimeout(guard); onFinal?.(alts); } else onInterim?.(alts[0] || '');
+    };
+    // zabezpieczenie: jeśli przeglądarka nic nie zgłosi, kończymy po 10 s
+    const guard = setTimeout(() => { if (!done) { done = true; try { r.abort(); } catch { /* */ } onError?.('no-speech'); } }, 10000);
+    r.onerror = e => { clearTimeout(guard); if (done) return; done = true; onError?.(e.error || 'error'); };
+    r.onend = () => { clearTimeout(guard); if (!done) { done = true; onError?.('no-speech'); } onEnd?.(); };
+    try { r.start(); } catch (e) { clearTimeout(guard); done = true; onError?.('start'); }
+    return { stop: () => { done = true; clearTimeout(guard); try { r.abort(); } catch { /* już zatrzymane */ } } };
+  },
+};
+
+/** Podobieństwo wypowiedzi do wzorca 0..1 (bez akcentów, rodzajników, interpunkcji; cyfry → słowa). */
+const NUM_WORDS = { 0: 'zero', 1: 'uno', 2: 'due', 3: 'tre', 4: 'quattro', 5: 'cinque', 6: 'sei', 7: 'sette', 8: 'otto', 9: 'nove', 10: 'dieci', 20: 'venti', 30: 'trenta', 50: 'cinquanta', 100: 'cento', 1000: 'mille' };
+function speechSimilarity(heard, target) {
+  const prep = s => normLoose(String(s).replace(/\d+/g, n => NUM_WORDS[+n] ?? n)).replace(/\s+/g, ' ').trim();
+  const h = prep(heard);
+  let best = 0;
+  for (const v of variants(target)) {
+    const t = prep(v);
+    for (const [a, b] of [[h, t], [stripArticle(h), stripArticle(t)]]) {
+      if (!a || !b) continue;
+      const sim = 1 - levenshtein(a, b) / Math.max(a.length, b.length);
+      best = Math.max(best, sim);
+    }
+  }
+  return best;
+}
 
 const Sfx = {
   ctx: null,

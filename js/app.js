@@ -27,6 +27,7 @@ const App = {
     });
     document.addEventListener('keydown', onKey);
     this.route();
+    Sync.init();
     if (migrated) toast(`Zaimportowano ${migrated} słówek z poprzedniej wersji 📥`);
     if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
       navigator.serviceWorker.register('sw.js').catch(() => {});
@@ -134,6 +135,12 @@ function startPractice(kind) {
     const exs = items.map(it => makeExercise(it.sentence ? 'listenBuild' : 'listen', it, pool));
     if (!exs.length) return toast('Najpierw ukończ kilka lekcji.');
     return Session.open(exs, { title });
+  } else if (kind === 'speak') {
+    items = shuffle(Object.keys(Storage.state.items).map(itemByKey).filter(Boolean)).slice(0, 8);
+    if (!items.length) return toast('Najpierw ukończ kilka lekcji.');
+    if (!Recog.enabled) return toast(Recog.supported ? 'Ćwiczenia mówienia są wyłączone w ustawieniach lub wyciszone na 15 minut.' : 'Ta przeglądarka nie rozpoznaje mowy – spróbuj w Chrome lub Safari.');
+    const pool = distractorPool();
+    return Session.open(items.map(it => makeExercise('speak', it, pool)), { title: 'Trening mówienia' });
   } else if (kind === 'mine') {
     items = myWordItems().filter(w => !App.practiceCat || w.cat === App.practiceCat);
     // najpierw te, których jeszcze nie znasz
@@ -254,6 +261,7 @@ const Views = {
       <div class="grid2">
         <button class="card action" data-practice="weak" ${learned ? '' : 'disabled'}><span>💪</span><b>Najsłabsze słowa</b><small>Trening dowolny</small></button>
         <button class="card action" data-practice="listen" ${learned && Speech.supported ? '' : 'disabled'}><span>🎧</span><b>Trening słuchu</b><small>${Speech.supported ? 'Pisz, co słyszysz' : 'Przeglądarka nie obsługuje mowy'}</small></button>
+        <button class="card action" data-practice="speak" ${learned && Recog.supported ? '' : 'disabled'}><span>🎤</span><b>Trening mówienia</b><small>${Recog.supported ? 'Mów po włosku' : 'Niedostępne w tej przeglądarce'}</small></button>
       </div>
 
       <h2 class="section-title">⚠️ Twoje błędy <span class="count">${mistakes.length}</span></h2>
@@ -335,12 +343,15 @@ const Views = {
           <label>Motyw</label>
           <div class="pills">${[['auto', 'Auto'], ['light', 'Jasny'], ['dark', 'Ciemny']].map(([k, n]) => `<button class="pill ${st.theme === k ? 'on' : ''}" data-theme="${k}">${n}</button>`).join('')}</div>
         </div>
+        <div class="set-row"><label for="sSpeak">Ćwiczenia mówienia 🎤<br><span class="muted small">${Recog.supported ? 'rozpoznawanie mowy w przeglądarce (wymaga internetu)' : 'niedostępne w tej przeglądarce – użyj Chrome lub Safari'}</span></label><input type="checkbox" class="switch" id="sSpeak" ${st.speak && Recog.supported ? 'checked' : ''} ${Recog.supported ? '' : 'disabled'}></div>
         <div class="set-row"><label for="sUnlock">Odblokuj wszystkie lekcje<br><span class="muted small">dla osób, które znają już podstawy</span></label><input type="checkbox" class="switch" id="sUnlock" ${st.unlockAll ? 'checked' : ''}></div>
       </section>
 
+      ${accountCard()}
+
       <section class="card">
         <h2 class="card-title">Dane</h2>
-        <p class="muted small">Postęp jest zapisany tylko w tej przeglądarce. Zrób kopię, aby przenieść go na inne urządzenie.</p>
+        <p class="muted small">${Sync.loggedIn ? 'Postęp jest zapisany w tej przeglądarce i na Twoim koncie.' : 'Postęp jest zapisany tylko w tej przeglądarce. Zaloguj się albo zrób kopię, aby przenieść go na inne urządzenie.'}</p>
         <div class="btn-row">
           <button class="btn light" id="backupExport">💾 Zapisz kopię</button>
           <label class="btn light">📂 Wczytaj kopię<input type="file" id="backupImport" accept=".json,application/json" hidden></label>
@@ -350,7 +361,7 @@ const Views = {
 
       <p class="footer-note">
         <a href="klasyczna/">Poprzednia wersja aplikacji →</a><br>
-        Włoski z Polskim · działa offline · v1
+        Włoski z Polskim · działa offline · v2
       </p>`;
   },
   profilBind(v) {
@@ -361,6 +372,11 @@ const Views = {
     $('#sSound', v).addEventListener('change', e => set('sound', e.target.checked));
     $('#sAuto', v).addEventListener('change', e => set('autoplay', e.target.checked));
     $('#sUnlock', v).addEventListener('change', e => set('unlockAll', e.target.checked));
+    $('#sSpeak', v).addEventListener('change', e => {
+      set('speak', e.target.checked);
+      if (e.target.checked) try { localStorage.removeItem('wp_speak_mute'); } catch { /* brak */ }
+    });
+    bindAccount(v);
     $('#sRate', v).addEventListener('input', e => { set('rate', +e.target.value); $('#rateVal').textContent = (+e.target.value).toFixed(2) + '×'; });
     $('#testVoice', v).addEventListener('click', () => Speech.speak('Ciao! Come stai? Benvenuto nel corso di italiano.'));
     $('#backupExport', v).addEventListener('click', () => {
@@ -382,13 +398,101 @@ const Views = {
     });
     $('#resetAll', v).addEventListener('click', () => {
       if (!confirm('Usunąć cały postęp (XP, serię, lekcje, powtórki)? Twoje słówka zostaną zachowane.')) return;
-      const keep = { myWords: S.myWords, settings: S.settings, migratedClassic: true };
+      const keep = { myWords: S.myWords, deletedWords: S.deletedWords, settings: S.settings, migratedClassic: true };
       Storage.replace({ ...defaultState(), ...keep });
       App.render();
       toast('Postęp wyzerowany.');
     });
   },
 };
+
+/* ---------- Konto i synchronizacja ---------- */
+App.linkSentTo = '';
+
+function accountCard() {
+  if (!Sync.enabled) return '';
+  let body;
+  if (!Sync.ready) {
+    body = `<p class="muted">Łączenie…</p>`;
+  } else if (Sync.loggedIn) {
+    const st = {
+      syncing: '🔄 Synchronizuję…',
+      ok: `✅ Zsynchronizowano ${Sync.lastSync ? new Date(Sync.lastSync).toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' }) : ''}`,
+      error: `⚠️ Błąd synchronizacji: ${esc(Sync.error)}`,
+      offline: '📴 Brak internetu – zsynchronizuję po połączeniu',
+      idle: '',
+    }[Sync.status] || '';
+    body = `
+      <div class="account-row"><span class="avatar">${esc((Sync.email || '?')[0].toUpperCase())}</span>
+        <div class="grow"><b>${esc(Sync.email)}</b><div class="muted small" id="syncStatus">${st}</div></div></div>
+      <div class="btn-row">
+        <button class="btn light small" id="syncNow">🔄 Synchronizuj teraz</button>
+        <button class="btn ghost small" id="logout">Wyloguj</button>
+      </div>`;
+  } else if (App.linkSentTo) {
+    body = `
+      <p>📧 Wysłaliśmy link logowania na <b>${esc(App.linkSentTo)}</b>.</p>
+      <p class="muted small">Otwórz e-mail <b>na tym urządzeniu</b> i kliknij link. Nie widzisz wiadomości? Sprawdź folder spam.</p>
+      <button class="btn ghost small" id="changeEmail">Zmień adres e-mail</button>`;
+  } else {
+    body = `
+      <p class="muted small">Zaloguj się, aby zapisywać postęp w chmurze i uczyć się na telefonie i komputerze. Twój obecny postęp zostanie zachowany.</p>
+      <button class="btn light wide google-btn" id="googleLogin"><span class="g-logo" aria-hidden="true">G</span> Zaloguj przez Google</button>
+      <div class="or"><span>lub link na e-mail</span></div>
+      <form id="emailLogin" class="email-row">
+        <input type="email" name="email" placeholder="twój@email.pl" required autocomplete="email">
+        <button class="btn primary">Wyślij</button>
+      </form>`;
+  }
+  return `<section class="card" id="accountCard"><h2 class="card-title">☁️ Konto i synchronizacja</h2>${body}</section>`;
+}
+
+function bindAccount(root) {
+  $('#googleLogin', root)?.addEventListener('click', () => Sync.signInGoogle());
+  $('#emailLogin', root)?.addEventListener('submit', async e => {
+    e.preventDefault();
+    const btn = $('button', e.target);
+    const email = e.target.email.value.trim();
+    btn.disabled = true;
+    try {
+      await Sync.sendLink(email);
+      App.linkSentTo = email;
+      App.render();
+    } catch (err) {
+      toast('Nie udało się wysłać: ' + esc(friendlyAuthError(err)));
+      btn.disabled = false;
+    }
+  });
+  $('#changeEmail', root)?.addEventListener('click', () => { App.linkSentTo = ''; App.render(); });
+  $('#syncNow', root)?.addEventListener('click', () => Sync.sync());
+  $('#logout', root)?.addEventListener('click', async () => {
+    if (!confirm('Wylogować? Postęp zostanie na tym urządzeniu i na Twoim koncie.')) return;
+    await Sync.logout();
+    toast('Wylogowano.');
+  });
+}
+
+/** Zmiana stanu logowania / synchronizacji → odśwież kartę konta (bez przebudowy całego ekranu). */
+let wasLoggedIn = null;
+function onSyncChange() {
+  if (Sync.loggedIn) App.linkSentTo = '';
+  const changed = wasLoggedIn !== null && wasLoggedIn !== Sync.loggedIn;
+  wasLoggedIn = Sync.loggedIn;
+  const card = $('#accountCard');
+  if (!card || App.tab !== 'profil') return;
+  const busy = card.contains(document.activeElement) && document.activeElement.matches('input');
+  if (busy) return;
+  if (changed && document.body.classList.contains('in-lesson') === false) { App.render(); return; }
+  card.outerHTML = accountCard();
+  bindAccount($('#accountCard').parentElement);
+}
+/** Dane zmieniły się po scaleniu z chmurą → odśwież widok, jeśli nic nie jest otwarte. */
+function onSyncDataChanged() {
+  applyTheme();
+  if (document.body.classList.contains('in-lesson') || !$('#modal').classList.contains('hidden')) return;
+  if (document.activeElement?.matches('input, textarea, select')) { renderTopbar(); return; }
+  App.render();
+}
 
 /* ---------- Słówka: moje ---------- */
 function myCategories() {
@@ -479,6 +583,7 @@ function bindWordRows() {
     const w = S.myWords.find(x => x.id === b.dataset.del);
     if (!w || !confirm(`Usunąć „${w.it}”?`)) return;
     S.myWords = S.myWords.filter(x => x !== w);
+    S.deletedWords = [...(S.deletedWords || []), w.id];
     delete S.items['m:' + w.id];
     Storage.save();
     App.render();
@@ -499,7 +604,7 @@ function bindWordRows() {
     $('#editForm').addEventListener('submit', e => {
       e.preventDefault();
       const f = e.target;
-      w.it = f.it.value.trim(); w.pl = f.pl.value.trim(); w.cat = f.cat.value.trim();
+      w.it = f.it.value.trim(); w.pl = f.pl.value.trim(); w.cat = f.cat.value.trim(); w.t = Date.now();
       Storage.save();
       closeModal();
       App.render();
