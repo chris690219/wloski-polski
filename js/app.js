@@ -10,6 +10,7 @@ const App = {
   practiceCat: '',
 
   init() {
+    hideSplash();
     Storage.load();
     Speech.init();
     applyTheme();
@@ -58,6 +59,17 @@ function renderTopbar() {
     <span class="chip ${doneToday ? 'fire' : 'cold'}" title="Seria dni nauki">🔥 ${streak}</span>
     <span class="chip xp" title="Punkty doświadczenia">⭐ ${S.xp}</span>
     <span class="ring" style="--p:${pct}" title="Dzienny cel: ${todayXP()}/${S.settings.goal} XP"><span>${pct >= 100 ? '✓' : '🎯'}</span></span>`;
+}
+
+/* ---------- ekran powitalny ---------- */
+const SPLASH_MS = 3000;
+function hideSplash() {
+  const el = $('#splash');
+  if (!el) return;
+  const t0 = performance.timeOrigin ? Date.now() - performance.timeOrigin : 0;
+  const go = () => { el.classList.add('gone'); setTimeout(() => el.remove(), 600); };
+  setTimeout(go, Math.max(0, SPLASH_MS - t0));
+  el.addEventListener('click', go); // dotknięcie pomija ekran
 }
 
 /* ---------- modal / toast ---------- */
