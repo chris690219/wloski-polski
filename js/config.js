@@ -11,9 +11,11 @@
  */
 window.WP_CONFIG = {
   firebase: {
-    apiKey: '',
-    authDomain: '',      // np. 'twoj-projekt.firebaseapp.com'
-    projectId: '',
-    appId: '',
+    apiKey: 'AIzaSyCSRtplvt8ebwh0IR1xbgVrvAetcg8P85w',
+    authDomain: 'nauka-wloskiego.firebaseapp.com',
+    projectId: 'nauka-wloskiego',
+    storageBucket: 'nauka-wloskiego.firebasestorage.app',
+    messagingSenderId: '601644761718',
+    appId: '1:601644761718:web:57d5a5b1ac282badda1557',
   },
 };
