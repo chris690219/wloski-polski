@@ -1,15 +1,20 @@
 /* Service worker: aplikacja działa offline.
- * Strategia „stale-while-revalidate”: najpierw z pamięci podręcznej, w tle pobiera nowszą wersję.
- * Po większych zmianach podbij VERSION. */
-const VERSION = 'wp-v4';
+ * Strategia „najpierw sieć”: przy internecie zawsze najnowsza wersja (zapytanie
+ * warunkowe, więc tanie), bez internetu – kopia z pamięci podręcznej.
+ * Po zmianie listy plików podbij VERSION. */
+const VERSION = 'wp-v6';
 const ASSETS = [
   './', 'index.html', 'css/style.css',
   'js/config.js', 'js/course.js', 'js/core.js', 'js/sync.js', 'js/lesson.js', 'js/app.js',
   'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png',
 ];
+const NETWORK_TIMEOUT = 4000;
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(ASSETS)).then(() => self.skipWaiting()));
+  // cache: 'reload' – pomija pamięć HTTP przeglądarki, żeby nie zapisać starej wersji
+  e.waitUntil(caches.open(VERSION)
+    .then(c => c.addAll(ASSETS.map(u => new Request(u, { cache: 'reload' }))))
+    .then(() => self.skipWaiting()));
 });
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
@@ -19,12 +24,18 @@ self.addEventListener('activate', e => {
 self.addEventListener('fetch', e => {
   const url = new URL(e.request.url);
   if (e.request.method !== 'GET' || url.origin !== location.origin) return;
-  e.respondWith(caches.open(VERSION).then(async cache => {
-    const cached = await cache.match(e.request, { ignoreSearch: true });
-    const network = fetch(e.request).then(res => {
+  e.respondWith((async () => {
+    const cache = await caches.open(VERSION);
+    const cached = () => cache.match(e.request, { ignoreSearch: true });
+    try {
+      const res = await Promise.race([
+        fetch(e.request, { cache: 'no-cache' }),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), NETWORK_TIMEOUT)),
+      ]);
       if (res.ok) cache.put(e.request, res.clone());
       return res;
-    }).catch(() => cached);
-    return cached || network;
-  }));
+    } catch {
+      return (await cached()) || Response.error();
+    }
+  })());
 });
