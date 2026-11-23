@@ -178,7 +178,8 @@ const Views = {
                 : `<div class="muted">🏁 Ukończono cały kurs! Utrwalaj słowa w powtórkach.</div>`}
           ${due ? `<a class="btn ghost" href="#powtorki">🔁 Powtórki: ${due}</a>` : ''}
         </div>
-      </section>`;
+      </section>
+      <div id="loginBanner"></div>`;
 
     COURSE.forEach((u, ui) => {
       const done = u.lessons.filter(l => lessonDone(l.id)).length;
@@ -211,6 +212,7 @@ const Views = {
     return html;
   },
   naukaBind(v) {
+    renderLoginBanner();
     $$('[data-start]', v).forEach(b => b.addEventListener('click', () => startLesson(b.dataset.start)));
     $$('[data-tip]', v).forEach(b => b.addEventListener('click', () => {
       const u = COURSE[+b.dataset.tip];
@@ -473,8 +475,29 @@ function bindAccount(root) {
 }
 
 /** Zmiana stanu logowania / synchronizacji → odśwież kartę konta (bez przebudowy całego ekranu). */
+/* zaproszenie do logowania na ekranie Nauka (można zamknąć) */
+function renderLoginBanner() {
+  const el = $('#loginBanner');
+  if (!el) return;
+  let dismissed = false;
+  try { dismissed = localStorage.getItem('wp_login_banner') === 'off'; } catch { /* brak */ }
+  if (!Sync.enabled || !Sync.ready || Sync.loggedIn || dismissed) { el.innerHTML = ''; return; }
+  el.innerHTML = `
+    <section class="card login-banner">
+      <span class="lb-icon">☁️</span>
+      <div class="grow"><b>Zapisuj postęp w chmurze</b><div class="muted small">Zaloguj się, aby uczyć się na telefonie i komputerze i nie stracić postępu.</div></div>
+      <a class="btn primary small" href="#profil">Zaloguj</a>
+      <button class="icon-btn" aria-label="Zamknij">✕</button>
+    </section>`;
+  $('.icon-btn', el).addEventListener('click', () => {
+    try { localStorage.setItem('wp_login_banner', 'off'); } catch { /* brak */ }
+    el.innerHTML = '';
+  });
+}
+
 let wasLoggedIn = null;
 function onSyncChange() {
+  renderLoginBanner();
   if (Sync.loggedIn) App.linkSentTo = '';
   const changed = wasLoggedIn !== null && wasLoggedIn !== Sync.loggedIn;
   wasLoggedIn = Sync.loggedIn;

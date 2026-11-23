@@ -455,3 +455,6 @@ textarea.answer { resize: none; font-size: 1.2rem; min-height: 96px; background:
 .email-row { display: flex; gap: 8px; }
 .email-row input { flex: 1; min-width: 0; }
 .grid2 > .card.action:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.login-banner { display: flex; align-items: center; gap: 12px; border-color: color-mix(in srgb, var(--blue) 35%, var(--line)); }
+.lb-icon { font-size: 1.8rem; }
+.login-banner .icon-btn { margin: -8px -8px -8px 0; }
