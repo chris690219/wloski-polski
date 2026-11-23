@@ -1,34 +1,49 @@
-# Włoski ↔ Polski — Nauka słówek
+# Włoski z Polskim 🇮🇹🇵🇱
 
-Offline aplikacja do nauki włoskiego (jeden plik HTML, dane w `localStorage`).
+Darmowa aplikacja do nauki włoskiego dla Polaków, w stylu Duolingo. Działa w przeglądarce, offline, bez kont i bez serwera.
 
-## Jak wystawić na GitHub Pages
+## Co potrafi
 
-1. Stwórz nowe repozytorium na GitHub (np. `wloski-polski`) — może być publiczne lub prywatne (Pages działa dla obu w planie darmowym, o ile repo jest publiczne; dla prywatnego repo Pages wymaga GitHub Pro).
-2. Wgraj plik `index.html` (i ten `README.md`, opcjonalnie) do repozytorium — root katalogu, bez podfolderów.
-3. Wejdź w **Settings → Pages** w repozytorium.
-4. W sekcji **Build and deployment** wybierz:
-   - Source: **Deploy from a branch**
-   - Branch: **main** (lub `master`), folder: **/ (root)**
-5. Kliknij **Save**. Po chwili (1–2 min) GitHub poda adres:
-   `https://<twoja-nazwa-uzytkownika>.github.io/<nazwa-repo>/`
-6. Otwórz ten adres — aplikacja powinna działać identycznie jak lokalnie.
+- **Kurs A1**: 11 jednostek, 33 lekcje, ponad 200 słów i 100 zdań. Każda jednostka ma wskazówki gramatyczne pisane z myślą o Polakach (wymowa, rodzajniki, *essere/avere*, fałszywi przyjaciele…).
+- **Ścieżka nauki**: kolejne lekcje odblokowują się po ukończeniu poprzednich (można to wyłączyć w ustawieniach).
+- **8 typów ćwiczeń**: nowe słowo, wybór odpowiedzi (IT→PL i PL→IT), łączenie par, pisanie tłumaczenia, dyktando (słuchanie), układanie zdania z kafelków, układanie zdania ze słuchu, wybór tłumaczenia zdania.
+- **Wymowa włoska** przez wbudowaną w przeglądarkę syntezę mowy, także w wolnym tempie 🐢.
+- **Wyrozumiałe sprawdzanie**: brak akcentu, brak polskiego znaku, brak rodzajnika lub drobna literówka nie są liczone jako błąd, ale aplikacja o nich przypomina.
+- **Powtórki z odstępami (system Leitnera)**: słowa wracają wtedy, gdy zaczynasz je zapominać. Do tego lista błędów, trening najsłabszych słów i trening słuchu.
+- **Motywacja**: XP, dzienny cel, seria dni 🔥 oraz wykres z ostatnich 7 dni.
+- **Moje słówka**: własna lista z kategoriami, import i eksport CSV, osobny trening.
+- **Aplikacja na telefon (PWA)**: na telefonie wybierz „Dodaj do ekranu głównego”. Działa bez internetu.
+- Tryb jasny i ciemny, kopia zapasowa postępu (plik JSON).
 
-## Ważne uwagi
+Poprzednia wersja aplikacji jest w folderze [`klasyczna/`](klasyczna/). Słówka zapisane w niej w tej samej przeglądarce są **automatycznie importowane** do nowej wersji.
 
-- **localStorage jest przypisany do domeny** — jeśli korzystasz z aplikacji zarówno lokalnie (plik na dysku), jak i na GitHub Pages, to są to **dwa niezależne zestawy danych** (różne "źródła" w oczach przeglądarki). Słówka i statystyki się nie zsynchronizują automatycznie między nimi.
-- Żeby przenieść słówka między wersjami, użyj przycisku **💾 Eksportuj plik** w aplikacji — pobierze on nowy plik HTML z wbudowanymi słówkami (`EMBEDDED_WORDS`), który możesz wgrać z powrotem do repo jako nowy `index.html`.
-- Aktualizacja słówek na GitHub Pages = commit nowego `index.html` do repo (np. przez przeglądarkę: "Edit this file" albo `git push`).
+## Uruchomienie
 
-## Aktualizacja przez git (opcjonalnie)
+- **GitHub Pages** (zalecane): *Settings → Pages → Deploy from a branch → `main` / (root)*. Aplikacja będzie pod adresem `https://<użytkownik>.github.io/wloski-polski/`.
+- **Lokalnie**: otwórz `index.html` w przeglądarce. Wszystko działa, oprócz instalacji jako aplikacja (PWA wymaga serwera). Możesz też uruchomić `python3 -m http.server` i wejść na `http://localhost:8000`.
 
-```bash
-git clone https://github.com/<twoja-nazwa-uzytkownika>/<nazwa-repo>.git
-cd <nazwa-repo>
-# skopiuj nowy index.html tutaj
-git add index.html
-git commit -m "Update vocabulary"
-git push
+## Struktura
+
+```
+index.html            szkielet aplikacji
+css/style.css         wygląd (zmienne kolorów, tryb ciemny)
+js/course.js          TREŚĆ KURSU: jednostki, lekcje, słowa, zdania, wskazówki
+js/core.js            sprawdzanie odpowiedzi, zapis stanu, powtórki (SRS), mowa
+js/lesson.js          generowanie ćwiczeń i przebieg lekcji
+js/app.js             ekrany: Nauka, Powtórki, Słówka, Profil
+sw.js                 service worker (tryb offline)
+manifest.webmanifest  instalacja jako aplikacja
+klasyczna/            poprzednia wersja
 ```
 
-Po push GitHub Pages automatycznie przebuduje stronę (kilkadziesiąt sekund do 1–2 minut).
+Bez frameworków i bez kroku budowania: wystarczy edytować pliki i zrobić commit.
+
+### Dodawanie treści
+
+Lekcje są w `js/course.js`. Słowo to `['włoski', 'polski', 'notatka (opcjonalnie)']`. Warianty poprawnej odpowiedzi rozdziela się ukośnikiem, np. `'dzisiaj/dziś'`. Zdanie to `['Zdanie po włosku.', 'Zdanie po polsku.']`.
+
+Po większych zmianach podbij `VERSION` w `sw.js`, żeby telefony pobrały nową wersję.
+
+## Plany: konta i synchronizacja
+
+Na razie postęp jest zapisany tylko w przeglądarce (`localStorage`). Cały stan to jeden obiekt JSON obsługiwany przez `Storage` w `js/core.js`. Aby dodać konta (np. Supabase lub Firebase), wystarczy podmienić `Storage.adapter` na taki, który zapisuje i wczytuje stan z serwera. Reszta aplikacji nie wymaga zmian.
