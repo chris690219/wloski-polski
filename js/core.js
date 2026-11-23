@@ -153,7 +153,7 @@ function defaultState() {
     items: {},                       // { key: { box, due, right, wrong, last } }
     myWords: [],                     // [{ id, it, pl, cat }]
     answers: { right: 0, wrong: 0 },
-    settings: { goal: 20, sound: true, autoplay: true, rate: 0.9, unlockAll: false, theme: 'auto', speak: true },
+    settings: { goal: 20, sound: true, autoplay: true, rate: 0.9, unlockAll: false, theme: 'auto', speak: true, unlockGranted: false },
     migratedClassic: false,
     deletedWords: [],                // id usuniętych własnych słów (dla synchronizacji)
     updatedAt: 0,                    // ms – ostatnia zmiana stanu
@@ -327,10 +327,25 @@ const learnedCount = () => Object.entries(Storage.state.items).filter(([k, r]) =
 /* ---------- postęp kursu ---------- */
 const lessonDone = id => (Storage.state.lessons[id]?.done || 0) > 0;
 function lessonUnlocked(lesson) {
-  if (Storage.state.settings.unlockAll) return true;
+  if (Storage.state.settings.unlockAll && Storage.state.settings.unlockGranted) return true;
   const i = ALL_LESSONS.indexOf(lesson);
   return i === 0 || lessonDone(ALL_LESSONS[i - 1].id);
 }
+/** Skrót kodu dostępu (cyrb53) – kod nie jest zapisany w kodzie strony otwartym tekstem. */
+function codeHash(str) {
+  str = String(str).trim().toUpperCase();
+  let h1 = 0xdeadbeef ^ 7, h2 = 0x41c6ce57 ^ 7;
+  for (let i = 0; i < str.length; i++) {
+    const c = str.charCodeAt(i);
+    h1 = Math.imul(h1 ^ c, 2654435761);
+    h2 = Math.imul(h2 ^ c, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
+}
+const checkUnlockCode = code => !!code && codeHash(code) === (window.WP_CONFIG || {}).unlockCodeHash;
+
 const currentLesson = () => ALL_LESSONS.find(l => !lessonDone(l.id)) || null;
 
 /* =========================================================================

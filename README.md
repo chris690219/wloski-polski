@@ -5,7 +5,7 @@ Darmowa aplikacja do nauki włoskiego dla Polaków, w stylu Duolingo. Działa w 
 ## Co potrafi
 
 - **Kurs A1**: 11 jednostek, 33 lekcje, ponad 200 słów i 100 zdań. Każda jednostka ma wskazówki gramatyczne pisane z myślą o Polakach (wymowa, rodzajniki, *essere/avere*, fałszywi przyjaciele…).
-- **Ścieżka nauki**: kolejne lekcje odblokowują się po ukończeniu poprzednich (można to wyłączyć w ustawieniach).
+- **Ścieżka nauki**: kolejne lekcje odblokowują się po ukończeniu poprzednich. Wszystkie lekcje naraz można odblokować w ustawieniach po podaniu kodu dostępu. Kod ustawia się w `js/config.js` (pole `unlockCodeHash`, instrukcja w komentarzu).
 - **8 typów ćwiczeń**: nowe słowo, wybór odpowiedzi (IT→PL i PL→IT), łączenie par, pisanie tłumaczenia, dyktando (słuchanie), układanie zdania z kafelków, układanie zdania ze słuchu, wybór tłumaczenia zdania.
 - **Wymowa włoska** przez wbudowaną w przeglądarkę syntezę mowy, także w wolnym tempie 🐢.
 - **Ćwiczenia mówienia 🎤**: powiedz słowo lub zdanie na głos, a przeglądarka sprawdzi wymowę. Działa w Chrome, Edge i Safari (wymaga internetu i zgody na mikrofon). Można je wyłączyć w ustawieniach albo pominąć na 15 minut przyciskiem „Nie mogę teraz mówić”.

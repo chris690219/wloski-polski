@@ -346,7 +346,7 @@ const Views = {
           <div class="pills">${[['auto', 'Auto'], ['light', 'Jasny'], ['dark', 'Ciemny']].map(([k, n]) => `<button class="pill ${st.theme === k ? 'on' : ''}" data-theme="${k}">${n}</button>`).join('')}</div>
         </div>
         <div class="set-row"><label for="sSpeak">Ćwiczenia mówienia 🎤<br><span class="muted small">${Recog.supported ? 'rozpoznawanie mowy w przeglądarce (wymaga internetu)' : 'niedostępne w tej przeglądarce – użyj Chrome lub Safari'}</span></label><input type="checkbox" class="switch" id="sSpeak" ${st.speak && Recog.supported ? 'checked' : ''} ${Recog.supported ? '' : 'disabled'}></div>
-        <div class="set-row"><label for="sUnlock">Odblokuj wszystkie lekcje<br><span class="muted small">dla osób, które znają już podstawy</span></label><input type="checkbox" class="switch" id="sUnlock" ${st.unlockAll ? 'checked' : ''}></div>
+        <div class="set-row"><label for="sUnlock">Odblokuj wszystkie lekcje 🔒<br><span class="muted small">${st.unlockGranted ? 'kod dostępu przyjęty' : 'wymaga kodu dostępu'}</span></label><input type="checkbox" class="switch" id="sUnlock" ${st.unlockAll && st.unlockGranted ? 'checked' : ''}></div>
       </section>
 
       ${accountCard()}
@@ -373,7 +373,12 @@ const Views = {
     $$('[data-theme]', v).forEach(b => b.addEventListener('click', () => { set('theme', b.dataset.theme); applyTheme(); App.render(); }));
     $('#sSound', v).addEventListener('change', e => set('sound', e.target.checked));
     $('#sAuto', v).addEventListener('change', e => set('autoplay', e.target.checked));
-    $('#sUnlock', v).addEventListener('change', e => set('unlockAll', e.target.checked));
+    $('#sUnlock', v).addEventListener('change', e => {
+      if (!e.target.checked) { set('unlockAll', false); return App.render(); }
+      if (S.settings.unlockGranted) { set('unlockAll', true); return App.render(); }
+      e.target.checked = false;
+      askUnlockCode();
+    });
     $('#sSpeak', v).addEventListener('change', e => {
       set('speak', e.target.checked);
       if (e.target.checked) try { localStorage.removeItem('wp_speak_mute'); } catch { /* brak */ }
@@ -407,6 +412,37 @@ const Views = {
     });
   },
 };
+
+/* ---------- kod odblokowujący wszystkie lekcje ---------- */
+function askUnlockCode() {
+  openModal(`
+    <h2>🔓 Odblokuj wszystkie lekcje</h2>
+    <p class="muted">Podaj kod dostępu, aby otworzyć wszystkie jednostki kursu bez przechodzenia ich po kolei.</p>
+    <form id="unlockForm" class="addform" autocomplete="off">
+      <input name="code" placeholder="Kod dostępu" autocapitalize="characters" spellcheck="false" required>
+      <div class="form-error" id="unlockError" aria-live="polite"></div>
+      <button class="btn primary wide">Odblokuj</button>
+      <button type="button" class="btn ghost wide" data-close>Anuluj</button>
+    </form>`);
+  const form = $('#unlockForm');
+  setTimeout(() => form.code.focus(), 250);
+  form.addEventListener('submit', e => {
+    e.preventDefault();
+    if (!checkUnlockCode(form.code.value)) {
+      $('#unlockError').textContent = 'Nieprawidłowy kod. Spróbuj ponownie.';
+      form.code.classList.remove('shake'); void form.code.offsetWidth; form.code.classList.add('shake');
+      form.code.select();
+      return;
+    }
+    const S = Storage.state;
+    S.settings.unlockGranted = true;
+    S.settings.unlockAll = true;
+    Storage.save();
+    closeModal();
+    App.render();
+    toast('Wszystkie lekcje odblokowane 🔓');
+  });
+}
 
 /* ---------- Konto i synchronizacja ---------- */
 App.linkSentTo = '';
