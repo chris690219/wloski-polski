@@ -7,8 +7,8 @@ Darmowa aplikacja do nauki włoskiego dla Polaków, w stylu Duolingo. Działa w 
 - **Dwa poziomy kursu, A1 i A2**: 22 jednostki, 67 lekcji, ponad 400 słów i 200 zdań. Każda jednostka ma wskazówki gramatyczne pisane z myślą o Polakach.
   - **A1 „Podstawy”**: wymowa, powitania, liczby, jedzenie, rodzina, *essere/avere*, podróże, fałszywi przyjaciele.
   - **A2 „Codzienne sytuacje”**: czas przeszły (*passato prossimo* z *avere* i *essere*), czasowniki zwrotne, dom, ubrania i zakupy, zdrowie, praca i nauka, pogoda i miesiące, czas przyszły, przyimki z rodzajnikiem, czas wolny (*mi piace*).
-  - Poziom A2 odblokowuje się po ukończeniu A1 albo od razu po podaniu kodu dostępu.
-- **Ścieżka nauki**: kolejne lekcje odblokowują się po ukończeniu poprzednich. Wszystkie lekcje naraz można odblokować w ustawieniach po podaniu kodu dostępu. Kod ustawia się w `js/config.js` (pole `unlockCodeHash`, instrukcja w komentarzu).
+  - Poziom A2 odblokowuje się po ukończeniu A1 albo od razu po podaniu osobistego kodu.
+- **Ścieżka nauki**: kolejne lekcje odblokowują się po ukończeniu poprzednich. Wszystkie lekcje naraz można odblokować **osobistym kodem**: zalogowany uczeń prosi o kod, administrator zatwierdza prośbę, a aplikacja generuje kod przypisany do konta ucznia (opis niżej).
 - **8 typów ćwiczeń**: nowe słowo, wybór odpowiedzi (IT→PL i PL→IT), łączenie par, pisanie tłumaczenia, dyktando (słuchanie), układanie zdania z kafelków, układanie zdania ze słuchu, wybór tłumaczenia zdania.
 - **Wymowa włoska** przez wbudowaną w przeglądarkę syntezę mowy, także w wolnym tempie 🐢.
 - **Ćwiczenia mówienia 🎤**: powiedz słowo lub zdanie na głos, a przeglądarka sprawdzi wymowę. Działa w Chrome, Edge i Safari (wymaga internetu i zgody na mikrofon). Można je wyłączyć w ustawieniach albo pominąć na 15 minut przyciskiem „Nie mogę teraz mówić”.
@@ -72,3 +72,25 @@ Darmowy plan Firebase (Spark) w zupełności wystarczy: jedna synchronizacja to 
 **Jak działa synchronizacja.** Aplikacja zapisuje wszystko najpierw w przeglądarce. Po zalogowaniu, kilka sekund po każdej zmianie, pobiera stan z chmury, scala go z lokalnym i zapisuje wynik w obu miejscach. Scalanie nie gubi postępu z żadnego urządzenia: XP liczone jest dzień po dniu, lekcje według najlepszego wyniku, a słowa według najnowszej powtórki. „Wyzeruj postęp” i „Wczytaj kopię” wygrywają ze starszymi danymi z chmury. Przy braku internetu synchronizacja odbywa się po odzyskaniu połączenia.
 
 Wartości w `js/config.js` są publiczne z założenia: Firebase przekazuje je każdej przeglądarce. Dane chronią reguły z `firestore.rules`.
+
+## Osobiste kody odblokowujące
+
+Wszystkie lekcje (także poziom A2) można odblokować kodem. Każdy kod jest **osobisty**: działa tylko na koncie, dla którego został wygenerowany.
+
+**Jak to działa**
+1. Zalogowany uczeń włącza w Profilu „Odblokuj wszystkie lekcje” (albo klika „Poproś o kod” w nagłówku poziomu) i wysyła prośbę, opcjonalnie z krótką wiadomością.
+2. Administrator widzi prośby w Profilu, w karcie „🛡️ Prośby o kod”. Liczba oczekujących pojawia się też na zakładce Profil.
+3. Po kliknięciu „Zatwierdź” aplikacja generuje kod w formacie `ITA-XXXX-XXXX`. Przycisk „📧 Wyślij e-mail” otwiera gotową wiadomość do ucznia z kodem.
+4. Uczeń wpisuje kod i wszystkie lekcje się odblokowują. Administrator widzi, czy kod został już użyty.
+
+**Ustawienie administratora (jednorazowo)**
+1. Zaloguj się w aplikacji i w Profilu, w karcie „Konto i synchronizacja”, skopiuj **ID konta**.
+2. W konsoli Firebase otwórz **Firestore Database → Data → Start collection**. Nazwa kolekcji: `admins`. **Document ID**: wklej swoje ID konta. Dodaj dowolne pole, np. `role` = `admin`, i zapisz.
+3. Wklej aktualną zawartość `firestore.rules` w **Firestore → Rules** i kliknij **Publish**.
+4. Odśwież aplikację. W Profilu pojawi się karta „🛡️ Prośby o kod”.
+
+Administratorów nie zapisuje się w kodzie aplikacji, więc ich adresy e-mail nie są publiczne. Kolejnego administratora dodaje się tak samo, kolejnym dokumentem w `admins`.
+
+**Bezpieczeństwo:** sam kod widzi tylko administrator (kolekcja `unlockCodes`). Uczeń ma w swojej prośbie jedynie skrót kodu, którym aplikacja sprawdza wpisany kod. Lekcje są jednak częścią strony, więc to zabezpieczenie dla zwykłych użytkowników, a nie ochrona przed osobą techniczną.
+
+Bez planu płatnego Firebase aplikacja nie wysyła powiadomień o nowych prośbach. Sprawdzaj je w Profilu, a e-mail z kodem wysyłasz jednym kliknięciem.

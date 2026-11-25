@@ -2,7 +2,7 @@
  * Strategia „najpierw sieć”: przy internecie zawsze najnowsza wersja (zapytanie
  * warunkowe, więc tanie), bez internetu – kopia z pamięci podręcznej.
  * Po zmianie listy plików podbij VERSION. */
-const VERSION = 'wp-v7';
+const VERSION = 'wp-v8';
 const ASSETS = [
   './', 'index.html', 'css/style.css',
   'js/config.js', 'js/course-a2.js', 'js/course.js', 'js/core.js', 'js/sync.js', 'js/lesson.js', 'js/app.js',

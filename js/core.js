@@ -331,7 +331,7 @@ function lessonUnlocked(lesson) {
   const i = ALL_LESSONS.indexOf(lesson);
   return i === 0 || lessonDone(ALL_LESSONS[i - 1].id);
 }
-/** Skrót kodu dostępu (cyrb53) – kod nie jest zapisany w kodzie strony otwartym tekstem. */
+/** Skrót kodu dostępu (cyrb53) – w bazie uczeń widzi tylko skrót swojego kodu, nie sam kod. */
 function codeHash(str) {
   str = String(str).trim().toUpperCase();
   let h1 = 0xdeadbeef ^ 7, h2 = 0x41c6ce57 ^ 7;
@@ -344,7 +344,6 @@ function codeHash(str) {
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return (h2 >>> 0).toString(16).padStart(8, '0') + (h1 >>> 0).toString(16).padStart(8, '0');
 }
-const checkUnlockCode = code => !!code && codeHash(code) === (window.WP_CONFIG || {}).unlockCodeHash;
 
 const currentLesson = () => ALL_LESSONS.find(l => !lessonDone(l.id)) || null;
 

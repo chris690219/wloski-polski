@@ -487,3 +487,29 @@ textarea.answer { resize: none; font-size: 1.2rem; min-height: 96px; background:
 .level-bar { margin: 6px 0 4px; height: 10px; }
 .level-lock { margin: 10px 0 0 !important; color: var(--ink-2); }
 .link-btn.inline { padding: 0; font-size: inherit; }
+
+/* ---------- osobiste kody: prośby i panel administratora ---------- */
+.req-status { display: flex; gap: 12px; align-items: center; font-size: 1.6rem; padding: 12px 14px; border-radius: 14px; margin-bottom: 12px; }
+.req-status div { font-size: 1rem; }
+.req-status.pending { background: var(--gold-soft); }
+.req-status.approved { background: var(--green-soft); }
+.req-status.rejected { background: var(--red-soft); }
+.addform textarea { resize: vertical; min-height: 80px; }
+.req-row { align-items: flex-start; }
+.req-row.rejected { opacity: .6; }
+.req-row.pending { border-color: var(--gold); }
+.req-note { margin: 6px 0; font-style: italic; color: var(--ink-2); }
+.req-row .btn-row { margin: 8px 0 0; }
+.code-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 4px; }
+.code-row code, .uid-row code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--surface-2);
+  padding: 4px 8px; border-radius: 8px; font-size: .95rem; font-weight: 700; letter-spacing: .04em;
+}
+.uid-row { margin: 4px 0 8px; word-break: break-all; }
+.uid-row code { font-size: .75rem; font-weight: 600; letter-spacing: 0; padding: 2px 6px; }
+.tabbar a { position: relative; }
+.tab-badge {
+  position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--red); color: #fff; font-size: .7rem; font-weight: 900; font-style: normal;
+  display: grid; place-items: center; line-height: 1;
+}

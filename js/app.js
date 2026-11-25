@@ -356,10 +356,11 @@ const Views = {
           <div class="pills">${[['auto', 'Auto'], ['light', 'Jasny'], ['dark', 'Ciemny']].map(([k, n]) => `<button class="pill ${st.theme === k ? 'on' : ''}" data-theme="${k}">${n}</button>`).join('')}</div>
         </div>
         <div class="set-row"><label for="sSpeak">Ćwiczenia mówienia 🎤<br><span class="muted small">${Recog.supported ? 'rozpoznawanie mowy w przeglądarce (wymaga internetu)' : 'niedostępne w tej przeglądarce – użyj Chrome lub Safari'}</span></label><input type="checkbox" class="switch" id="sSpeak" ${st.speak && Recog.supported ? 'checked' : ''} ${Recog.supported ? '' : 'disabled'}></div>
-        <div class="set-row"><label for="sUnlock">Odblokuj wszystkie lekcje 🔒<br><span class="muted small">${st.unlockGranted ? 'kod dostępu przyjęty' : 'wymaga kodu dostępu'}</span></label><input type="checkbox" class="switch" id="sUnlock" ${st.unlockAll && st.unlockGranted ? 'checked' : ''}></div>
+        <div class="set-row"><label for="sUnlock">Odblokuj wszystkie lekcje 🔒<br><span class="muted small">${st.unlockGranted ? 'odblokowane osobistym kodem' : 'wymaga osobistego kodu – poproś o niego'}</span></label><input type="checkbox" class="switch" id="sUnlock" ${st.unlockAll && st.unlockGranted ? 'checked' : ''}></div>
       </section>
 
       ${accountCard()}
+      ${adminCardShell()}
 
       <section class="card">
         <h2 class="card-title">Dane</h2>
@@ -394,6 +395,7 @@ const Views = {
       if (e.target.checked) try { localStorage.removeItem('wp_speak_mute'); } catch { /* brak */ }
     });
     bindAccount(v);
+    loadAdminList();
     $('#sRate', v).addEventListener('input', e => { set('rate', +e.target.value); $('#rateVal').textContent = (+e.target.value).toFixed(2) + '×'; });
     $('#testVoice', v).addEventListener('click', () => Speech.speak('Ciao! Come stai? Benvenuto nel corso di italiano.'));
     $('#backupExport', v).addEventListener('click', () => {
@@ -439,40 +441,183 @@ function levelHeader(id) {
         <p class="muted small">${esc(L.desc)}</p>
         <div class="goalbar level-bar"><div style="width:${Math.round(done / ls.length * 100)}%"></div></div>
         <div class="small muted">${done}/${ls.length} lekcji${done === ls.length ? ' · ukończony 🏆' : ''}</div>
-        ${open ? '' : `<p class="small level-lock">🔒 Ukończ poziom ${prev ? prev.id : ''}, aby odblokować. Masz kod dostępu? <button class="link-btn inline" data-unlock-code>Wpisz kod</button></p>`}
+        ${open ? '' : `<p class="small level-lock">🔒 Ukończ poziom ${prev ? prev.id : ''}, aby odblokować. <button class="link-btn inline" data-unlock-code>Poproś o kod lub wpisz kod</button></p>`}
       </div>
     </section>`;
 }
 
 /* ---------- kod odblokowujący wszystkie lekcje ---------- */
+/*
+ * Każdy uczeń dostaje OSOBISTY kod, przypisany do jego konta:
+ * 1) uczeń prosi o kod (Firestore: unlockRequests/{uid}, status „pending”),
+ * 2) administrator zatwierdza prośbę w Profilu – aplikacja generuje kod i pomaga wysłać go e-mailem,
+ * 3) uczeń wpisuje kod; działa on tylko na koncie, dla którego został wygenerowany.
+ */
+const fmtDateTime = ms => ms ? new Date(ms).toLocaleString('pl-PL', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+
 function askUnlockCode() {
-  openModal(`
-    <h2>🔓 Odblokuj wszystkie lekcje</h2>
-    <p class="muted">Podaj kod dostępu, aby otworzyć wszystkie jednostki kursu bez przechodzenia ich po kolei.</p>
-    <form id="unlockForm" class="addform" autocomplete="off">
-      <input name="code" placeholder="Kod dostępu" autocapitalize="characters" spellcheck="false" required>
-      <div class="form-error" id="unlockError" aria-live="polite"></div>
-      <button class="btn primary wide">Odblokuj</button>
-      <button type="button" class="btn ghost wide" data-close>Anuluj</button>
-    </form>`);
-  const form = $('#unlockForm');
-  setTimeout(() => form.code.focus(), 250);
-  form.addEventListener('submit', e => {
+  const head = `<h2>🔓 Odblokuj wszystkie lekcje</h2>`;
+  if (!Sync.enabled) {
+    return openModal(`${head}<p class="muted">Odblokowanie wymaga kont użytkowników, które nie są włączone w tej wersji aplikacji.</p>
+      <button class="btn ghost wide" data-close>OK</button>`);
+  }
+  if (!Sync.loggedIn) {
+    openModal(`${head}
+      <p>Kod jest <b>osobisty</b> i przypisany do Twojego konta.</p>
+      <p class="muted">Zaloguj się w Profilu, a potem poproś o kod – po zatwierdzeniu prośby otrzymasz go e-mailem.</p>
+      <button class="btn primary wide" id="goLogin">Przejdź do logowania</button>
+      <button class="btn ghost wide" data-close>Anuluj</button>`);
+    $('#goLogin').addEventListener('click', () => { closeModal(); location.hash = '#profil'; });
+    return;
+  }
+  openModal(`${head}<p class="muted">Sprawdzam status prośby…</p>`);
+  renderUnlockFlow();
+}
+
+async function renderUnlockFlow(showForm = false) {
+  let req;
+  try { req = await Sync.myRequest(); } catch (e) {
+    $('#modalSheet').innerHTML = `<h2>🔓 Odblokuj wszystkie lekcje</h2>
+      <p class="warn">Nie udało się sprawdzić prośby: ${esc(friendlyAuthError(e))}</p>
+      <button class="btn ghost wide" data-close>Zamknij</button>`;
+    return;
+  }
+  const email = esc(Sync.email);
+  let body;
+  if (!req || showForm) {
+    body = `
+      <p>Wyślij prośbę o <b>osobisty kod</b>. Gdy ją zatwierdzimy, kod przyjdzie na <b>${email}</b>.</p>
+      <form id="requestForm" class="addform">
+        <label>Wiadomość (opcjonalnie)
+          <textarea name="note" rows="3" maxlength="500" placeholder="Np. znam już podstawy i chcę zacząć od poziomu A2."></textarea></label>
+        <button class="btn primary wide">📨 Poproś o kod</button>
+        <button type="button" class="btn ghost wide" data-close>Anuluj</button>
+      </form>`;
+  } else if (req.status === 'pending') {
+    body = `
+      <div class="req-status pending">⏳ <div><b>Prośba wysłana</b><div class="small muted">${fmtDateTime(req.createdAt)}</div></div></div>
+      <p class="muted">Gdy prośba zostanie zatwierdzona, kod przyjdzie na <b>${email}</b>. Zajrzyj tu ponownie później.</p>
+      <button class="btn light wide" id="reqRefresh">🔄 Sprawdź status</button>
+      <button class="btn ghost wide" data-close>Zamknij</button>`;
+  } else if (req.status === 'approved') {
+    body = `
+      <div class="req-status approved">✅ <div><b>Prośba zatwierdzona!</b><div class="small muted">Kod wysłaliśmy na ${email}</div></div></div>
+      <form id="unlockForm" class="addform" autocomplete="off">
+        <input name="code" placeholder="ITA-XXXX-XXXX" autocapitalize="characters" spellcheck="false" required>
+        <div class="form-error" id="unlockError" aria-live="polite"></div>
+        <button class="btn primary wide">Odblokuj</button>
+        <button type="button" class="btn ghost wide" data-close>Anuluj</button>
+      </form>`;
+  } else {
+    body = `
+      <div class="req-status rejected">❌ <div><b>Prośba nie została zatwierdzona</b><div class="small muted">${fmtDateTime(req.decidedAt)}</div></div></div>
+      <button class="btn light wide" id="reqAgain">📨 Wyślij prośbę ponownie</button>
+      <button class="btn ghost wide" data-close>Zamknij</button>`;
+  }
+  $('#modalSheet').innerHTML = `<h2>🔓 Odblokuj wszystkie lekcje</h2>${body}`;
+
+  $('#reqRefresh')?.addEventListener('click', () => renderUnlockFlow());
+  $('#reqAgain')?.addEventListener('click', () => renderUnlockFlow(true));
+  $('#requestForm')?.addEventListener('submit', async e => {
     e.preventDefault();
-    if (!checkUnlockCode(form.code.value)) {
-      $('#unlockError').textContent = 'Nieprawidłowy kod. Spróbuj ponownie.';
-      form.code.classList.remove('shake'); void form.code.offsetWidth; form.code.classList.add('shake');
-      form.code.select();
-      return;
+    const btn = $('button', e.target);
+    btn.disabled = true;
+    try {
+      await Sync.requestCode(e.target.note.value.trim());
+      toast('Prośba wysłana 📨');
+      renderUnlockFlow();
+    } catch (err) {
+      toast('Nie udało się wysłać prośby: ' + esc(friendlyAuthError(err)));
+      btn.disabled = false;
     }
-    const S = Storage.state;
-    S.settings.unlockGranted = true;
-    S.settings.unlockAll = true;
-    Storage.save();
-    closeModal();
-    App.render();
-    toast('Wszystkie lekcje odblokowane 🔓');
   });
+  const form = $('#unlockForm');
+  if (form) {
+    setTimeout(() => form.code.focus(), 250);
+    form.addEventListener('submit', async e => {
+      e.preventDefault();
+      const ok = await Sync.redeem(form.code.value).catch(() => false);
+      if (!ok) {
+        $('#unlockError').textContent = 'Nieprawidłowy kod. Sprawdź e-mail i spróbuj ponownie.';
+        form.code.classList.remove('shake'); void form.code.offsetWidth; form.code.classList.add('shake');
+        form.code.select();
+        return;
+      }
+      const S = Storage.state;
+      S.settings.unlockGranted = true;
+      S.settings.unlockAll = true;
+      Storage.save();
+      closeModal();
+      App.render();
+      toast('Wszystkie lekcje odblokowane 🔓');
+    });
+  }
+}
+
+/* ---------- panel administratora: prośby o kod ---------- */
+function adminCardShell() {
+  if (!Sync.admin) return '';
+  return `<section class="card" id="adminCard"><h2 class="card-title">🛡️ Prośby o kod <span class="count" id="adminCount">${Sync.pending || ''}</span></h2>
+    <div id="adminList"><p class="muted small">Wczytuję…</p></div></section>`;
+}
+
+async function loadAdminList() {
+  const box = $('#adminList');
+  if (!box) return;
+  const list = await Sync.refreshPending();
+  if (!list) { box.innerHTML = `<p class="warn">Nie udało się wczytać próśb. Sprawdź reguły Firestore.</p>`; return; }
+  $('#adminCount').textContent = Sync.pending || '';
+  updateTabBadge();
+  if (!list.length) { box.innerHTML = `<p class="muted small">Brak próśb.</p>`; return; }
+  const appUrl = location.origin + location.pathname;
+  box.innerHTML = `<ul class="list">${list.map(r => {
+    const who = `<b>${esc(r.name || r.email)}</b>${r.name ? `<div class="muted small">${esc(r.email)}</div>` : ''}`;
+    const note = r.note ? `<div class="req-note">„${esc(r.note)}”</div>` : '';
+    let actions = '';
+    if (r.status === 'pending') {
+      actions = `<div class="btn-row small"><button class="btn primary small" data-approve="${esc(r.uid)}">✔ Zatwierdź</button>
+        <button class="btn ghost small" data-reject="${esc(r.uid)}">✘ Odrzuć</button></div>`;
+    } else if (r.status === 'approved') {
+      const subject = 'Twój kod do kursu włoskiego';
+      const bodyTxt = `Cześć!\n\nTwoja prośba o odblokowanie wszystkich lekcji została zatwierdzona.\n\nTwój osobisty kod: ${r.code}\n\nOtwórz aplikację: ${appUrl}#profil\nZaloguj się kontem ${r.email}, włącz „Odblokuj wszystkie lekcje” i wpisz kod.\n\nBuono studio!`;
+      actions = `<div class="code-row"><code>${esc(r.code || '—')}</code>
+          <button class="btn light small" data-copy="${esc(r.code)}">📋 Kopiuj</button>
+          ${r.email ? `<a class="btn light small" href="mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyTxt)}">📧 Wyślij e-mail</a>` : ''}</div>
+        <div class="small muted">${r.redeemedAt ? `✅ użyty ${fmtDateTime(r.redeemedAt)}` : '⏳ jeszcze nieużyty'}</div>`;
+    } else {
+      actions = `<div class="small muted">❌ odrzucona ${fmtDateTime(r.decidedAt)}</div>`;
+    }
+    return `<li class="row req-row ${r.status}"><div class="grow">${who}<div class="small muted">wysłana ${fmtDateTime(r.createdAt)}</div>${note}${actions}</div></li>`;
+  }).join('')}</ul>`;
+  const byUid = Object.fromEntries(list.map(r => [r.uid, r]));
+  $$('[data-approve]', box).forEach(b => b.addEventListener('click', async () => {
+    b.disabled = true;
+    try { await Sync.decide(byUid[b.dataset.approve], true); toast('Zatwierdzono – wyślij kod e-mailem 📧'); }
+    catch (e) { toast('Błąd: ' + esc(friendlyAuthError(e))); }
+    loadAdminList();
+  }));
+  $$('[data-reject]', box).forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Odrzucić tę prośbę?')) return;
+    try { await Sync.decide(byUid[b.dataset.reject], false); } catch (e) { toast('Błąd: ' + esc(friendlyAuthError(e))); }
+    loadAdminList();
+  }));
+  $$('[data-copy]', box).forEach(b => b.addEventListener('click', () => copyText(b.dataset.copy)));
+}
+
+async function copyText(t) {
+  try { await navigator.clipboard.writeText(t); toast('Skopiowano 📋'); }
+  catch { prompt('Skopiuj:', t); }
+}
+
+/** Plakietka z liczbą oczekujących próśb na zakładce Profil (tylko administrator). */
+function updateTabBadge() {
+  const tab = $('.tabbar a[data-tab="profil"]');
+  if (!tab) return;
+  let badge = $('.tab-badge', tab);
+  const n = Sync.admin ? Sync.pending : 0;
+  if (!n) { badge?.remove(); return; }
+  if (!badge) { badge = document.createElement('i'); badge.className = 'tab-badge'; tab.appendChild(badge); }
+  badge.textContent = n;
 }
 
 /* ---------- Konto i synchronizacja ---------- */
@@ -494,6 +639,7 @@ function accountCard() {
     body = `
       <div class="account-row"><span class="avatar">${esc((Sync.email || '?')[0].toUpperCase())}</span>
         <div class="grow"><b>${esc(Sync.email)}</b><div class="muted small" id="syncStatus">${st}</div></div></div>
+      <div class="muted small uid-row">ID konta: <code>${esc(Sync.user?.id || '')}</code> <button class="link-btn inline" id="copyUid">kopiuj</button>${Sync.admin ? ' · 🛡️ administrator' : ''}</div>
       <div class="btn-row">
         <button class="btn light small" id="syncNow">🔄 Synchronizuj teraz</button>
         <button class="btn ghost small" id="logout">Wyloguj</button>
@@ -534,6 +680,7 @@ function bindAccount(root) {
   });
   $('#changeEmail', root)?.addEventListener('click', () => { App.linkSentTo = ''; App.render(); });
   $('#syncNow', root)?.addEventListener('click', () => Sync.sync());
+  $('#copyUid', root)?.addEventListener('click', () => copyText(Sync.user?.id || ''));
   $('#logout', root)?.addEventListener('click', async () => {
     if (!confirm('Wylogować? Postęp zostanie na tym urządzeniu i na Twoim koncie.')) return;
     await Sync.logout();
@@ -568,11 +715,16 @@ function onSyncChange() {
   if (Sync.loggedIn) App.linkSentTo = '';
   const changed = wasLoggedIn !== null && wasLoggedIn !== Sync.loggedIn;
   wasLoggedIn = Sync.loggedIn;
+  updateTabBadge();
   const card = $('#accountCard');
   if (!card || App.tab !== 'profil') return;
   const busy = card.contains(document.activeElement) && document.activeElement.matches('input');
   if (busy) return;
-  if (changed && document.body.classList.contains('in-lesson') === false) { App.render(); return; }
+  // zmiana logowania lub uprawnień administratora → przebuduj cały Profil
+  const adminChanged = !!$('#adminCard') !== !!Sync.admin;
+  if ((changed || adminChanged) && document.body.classList.contains('in-lesson') === false) { App.render(); return; }
+  const cnt = $('#adminCount');
+  if (cnt) cnt.textContent = Sync.pending || '';
   card.outerHTML = accountCard();
   bindAccount($('#accountCard').parentElement);
 }
