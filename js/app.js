@@ -179,16 +179,21 @@ const Views = {
           ${due ? `<a class="btn ghost" href="#powtorki">🔁 Powtórki: ${due}</a>` : ''}
         </div>
       </section>
-      <div id="loginBanner"></div>`;
+      <div id="loginBanner"></div>
+      <nav class="level-jump" aria-label="Poziomy">${LEVELS.map(L => {
+        const ls = levelLessons(L.id), d = ls.filter(l => lessonDone(l.id)).length;
+        return `<a href="#nauka" data-level-jump="${L.id}" class="${cur && COURSE[cur.unitIndex].level === L.id ? 'on' : ''}"><b>${L.id}</b><em class="lj-title">${esc(L.title)}</em><span>${d}/${ls.length}</span></a>`;
+      }).join('')}</nav>`;
 
     COURSE.forEach((u, ui) => {
+      if (ui === 0 || COURSE[ui - 1].level !== u.level) html += levelHeader(u.level);
       const done = u.lessons.filter(l => lessonDone(l.id)).length;
       const unlocked = lessonUnlocked(u.lessons[0]);
       html += `
         <section class="unit ${unlocked ? '' : 'locked'}" style="--uc:${u.color}">
           <header class="unit-head">
             <div>
-              <div class="eyebrow">Jednostka ${ui + 1} · ${done}/${u.lessons.length}</div>
+              <div class="eyebrow">${u.level} · Jednostka ${u.numInLevel} · ${done}/${u.lessons.length}</div>
               <h2>${u.icon} ${esc(u.title)}</h2>
             </div>
             <button class="btn small light" data-tip="${ui}">📖 Wskazówki</button>
@@ -213,6 +218,11 @@ const Views = {
   },
   naukaBind(v) {
     renderLoginBanner();
+    $$('[data-level-jump]', v).forEach(a => a.addEventListener('click', e => {
+      e.preventDefault();
+      $('#level-' + a.dataset.levelJump)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
+    $$('[data-unlock-code]', v).forEach(b => b.addEventListener('click', () => askUnlockCode()));
     $$('[data-start]', v).forEach(b => b.addEventListener('click', () => startLesson(b.dataset.start)));
     $$('[data-tip]', v).forEach(b => b.addEventListener('click', () => {
       const u = COURSE[+b.dataset.tip];
@@ -412,6 +422,27 @@ const Views = {
     });
   },
 };
+
+/* ---------- nagłówek poziomu na ścieżce nauki ---------- */
+function levelHeader(id) {
+  const L = LEVELS.find(x => x.id === id);
+  const ls = levelLessons(id);
+  const done = ls.filter(l => lessonDone(l.id)).length;
+  const open = lessonUnlocked(ls[0]);
+  const prev = LEVELS[LEVELS.indexOf(L) - 1];
+  return `
+    <section class="level-head ${open ? '' : 'locked'}" id="level-${id}">
+      <div class="level-badge">${id}</div>
+      <div class="grow">
+        <div class="eyebrow">Poziom ${id}</div>
+        <h2>${L.icon} ${esc(L.title)}</h2>
+        <p class="muted small">${esc(L.desc)}</p>
+        <div class="goalbar level-bar"><div style="width:${Math.round(done / ls.length * 100)}%"></div></div>
+        <div class="small muted">${done}/${ls.length} lekcji${done === ls.length ? ' · ukończony 🏆' : ''}</div>
+        ${open ? '' : `<p class="small level-lock">🔒 Ukończ poziom ${prev ? prev.id : ''}, aby odblokować. Masz kod dostępu? <button class="link-btn inline" data-unlock-code>Wpisz kod</button></p>`}
+      </div>
+    </section>`;
+}
 
 /* ---------- kod odblokowujący wszystkie lekcje ---------- */
 function askUnlockCode() {
@@ -683,7 +714,7 @@ function courseDictList() {
   COURSE.forEach(u => {
     const words = u.lessons.flatMap(l => l.words).filter(w => !q || normLoose(w.it + ' ' + w.pl).includes(q));
     if (!words.length) return;
-    html += `<li class="list-head">${u.icon} ${esc(u.title)}</li>`;
+    html += `<li class="list-head">${u.icon} ${esc(u.title)} <span class="muted small">${u.level}</span></li>`;
     html += words.map(w => {
       const known = !!Storage.state.items[w.key];
       return `

@@ -4,7 +4,10 @@ Darmowa aplikacja do nauki włoskiego dla Polaków, w stylu Duolingo. Działa w 
 
 ## Co potrafi
 
-- **Kurs A1**: 11 jednostek, 33 lekcje, ponad 200 słów i 100 zdań. Każda jednostka ma wskazówki gramatyczne pisane z myślą o Polakach (wymowa, rodzajniki, *essere/avere*, fałszywi przyjaciele…).
+- **Dwa poziomy kursu, A1 i A2**: 22 jednostki, 67 lekcji, ponad 400 słów i 200 zdań. Każda jednostka ma wskazówki gramatyczne pisane z myślą o Polakach.
+  - **A1 „Podstawy”**: wymowa, powitania, liczby, jedzenie, rodzina, *essere/avere*, podróże, fałszywi przyjaciele.
+  - **A2 „Codzienne sytuacje”**: czas przeszły (*passato prossimo* z *avere* i *essere*), czasowniki zwrotne, dom, ubrania i zakupy, zdrowie, praca i nauka, pogoda i miesiące, czas przyszły, przyimki z rodzajnikiem, czas wolny (*mi piace*).
+  - Poziom A2 odblokowuje się po ukończeniu A1 albo od razu po podaniu kodu dostępu.
 - **Ścieżka nauki**: kolejne lekcje odblokowują się po ukończeniu poprzednich. Wszystkie lekcje naraz można odblokować w ustawieniach po podaniu kodu dostępu. Kod ustawia się w `js/config.js` (pole `unlockCodeHash`, instrukcja w komentarzu).
 - **8 typów ćwiczeń**: nowe słowo, wybór odpowiedzi (IT→PL i PL→IT), łączenie par, pisanie tłumaczenia, dyktando (słuchanie), układanie zdania z kafelków, układanie zdania ze słuchu, wybór tłumaczenia zdania.
 - **Wymowa włoska** przez wbudowaną w przeglądarkę syntezę mowy, także w wolnym tempie 🐢.
@@ -29,7 +32,8 @@ Poprzednia wersja aplikacji jest w folderze [`klasyczna/`](klasyczna/). Słówka
 ```
 index.html            szkielet aplikacji
 css/style.css         wygląd (zmienne kolorów, tryb ciemny)
-js/course.js          TREŚĆ KURSU: jednostki, lekcje, słowa, zdania, wskazówki
+js/course.js          TREŚĆ KURSU, poziom A1, oraz lista poziomów (LEVELS)
+js/course-a2.js       TREŚĆ KURSU, poziom A2
 js/config.js          konfiguracja Firebase (puste = bez kont)
 js/core.js            sprawdzanie odpowiedzi, zapis stanu, powtórki (SRS), mowa, rozpoznawanie mowy
 js/sync.js            konta i synchronizacja (Firebase), scalanie postępu z kilku urządzeń
@@ -45,7 +49,7 @@ Bez frameworków i bez kroku budowania: wystarczy edytować pliki i zrobić comm
 
 ### Dodawanie treści
 
-Lekcje są w `js/course.js`. Słowo to `['włoski', 'polski', 'notatka (opcjonalnie)']`. Warianty poprawnej odpowiedzi rozdziela się ukośnikiem, np. `'dzisiaj/dziś'`. Zdanie to `['Zdanie po włosku.', 'Zdanie po polsku.']`.
+Lekcje są w `js/course.js` (A1) i `js/course-a2.js` (A2). Nowy poziom dodaje się jako kolejny plik, wpis w `LEVELS` w `js/course.js` i `<script>` w `index.html` przed `course.js`. Słowo to `['włoski', 'polski', 'notatka (opcjonalnie)']`. Warianty poprawnej odpowiedzi rozdziela się ukośnikiem, np. `'dzisiaj/dziś'`. Zdanie to `['Zdanie po włosku.', 'Zdanie po polsku.']`.
 
 Po większych zmianach podbij `VERSION` w `sw.js`, żeby telefony pobrały nową wersję.
 

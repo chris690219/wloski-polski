@@ -619,10 +619,23 @@ const COURSE_RAW = [
   },
 ];
 
+/* Poziomy kursu. Jednostki kolejnych poziomów dopisujemy na końcu,
+ * więc identyfikatory lekcji poziomu A1 (u1l1…u11l3) się nie zmieniają. */
+const LEVELS = [
+  { id: 'A1', title: 'Podstawy', icon: '🌱', desc: 'Powitania, liczby, jedzenie, rodzina, podróże i pierwsze czasowniki.' },
+  { id: 'A2', title: 'Codzienne sytuacje', icon: '🚀', desc: 'Czas przeszły i przyszły, dom, zakupy, zdrowie, praca, pogoda i czas wolny.' },
+];
+const RAW_UNITS = [
+  ...COURSE_RAW.map(u => ({ ...u, level: 'A1' })),
+  ...(typeof COURSE_RAW_A2 !== 'undefined' ? COURSE_RAW_A2 : []).map(u => ({ ...u, level: 'A2' })),
+];
+
 /* Zbudowanie struktury z identyfikatorami. */
-const COURSE = COURSE_RAW.map((u, ui) => ({
+const COURSE = RAW_UNITS.map((u, ui) => ({
   id: 'u' + (ui + 1),
   index: ui,
+  level: u.level,
+  numInLevel: RAW_UNITS.slice(0, ui + 1).filter(x => x.level === u.level).length,
   title: u.title, icon: u.icon, color: u.color, tip: u.tip,
   lessons: u.lessons.map((l, li) => ({
     id: 'u' + (ui + 1) + 'l' + (li + 1),
@@ -637,3 +650,6 @@ const COURSE = COURSE_RAW.map((u, ui) => ({
 const ALL_LESSONS = COURSE.flatMap(u => u.lessons);
 const ALL_COURSE_WORDS = ALL_LESSONS.flatMap(l => l.words);
 const ALL_SENTENCES = ALL_LESSONS.flatMap(l => l.sentences);
+
+const levelUnits = id => COURSE.filter(u => u.level === id);
+const levelLessons = id => ALL_LESSONS.filter(l => COURSE[l.unitIndex].level === id);
