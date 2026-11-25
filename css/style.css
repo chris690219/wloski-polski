@@ -459,3 +459,31 @@ textarea.answer { resize: none; font-size: 1.2rem; min-height: 96px; background:
 .lb-icon { font-size: 1.8rem; }
 .login-banner .icon-btn { margin: -8px -8px -8px 0; }
 .form-error { color: var(--red); font-weight: 700; font-size: .9rem; min-height: 1.2em; margin-top: -4px; }
+
+/* ---------- poziomy kursu ---------- */
+.level-jump { display: flex; gap: 8px; margin: 4px 0 6px; overflow-x: auto; scrollbar-width: none; }
+.level-jump a {
+  flex: 1 1 0; min-width: 0; display: flex; align-items: center; gap: 6px; justify-content: center;
+  padding: 9px 12px; border-radius: 12px; border: 2px solid var(--line); background: var(--surface);
+  color: var(--ink-2); text-decoration: none; font-weight: 700; font-size: .88rem; white-space: nowrap;
+}
+.level-jump a b { color: var(--ink); flex: none; }
+.level-jump .lj-title { font-style: normal; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.level-jump a span { flex: none; }
+.level-jump a span { color: var(--muted); font-size: .8rem; }
+.level-jump a.on { border-color: var(--green); background: var(--green-soft); }
+.level-head {
+  display: flex; gap: 14px; align-items: flex-start; margin: 34px 0 6px; padding: 18px 16px;
+  border-radius: var(--radius); background: var(--surface); border: 2px solid var(--line); box-shadow: var(--shadow);
+  scroll-margin-top: 70px;
+}
+.level-head h2 { font-size: 1.35rem; font-weight: 900; margin: 2px 0 4px; }
+.level-head p { margin: 0 0 8px; }
+.level-badge {
+  flex: none; width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center;
+  font-weight: 900; font-size: 1.2rem; color: #fff; background: linear-gradient(135deg, #009246, #1f8a4c 50%, #ce2b37);
+}
+.level-head.locked .level-badge { background: var(--locked); color: var(--muted); }
+.level-bar { margin: 6px 0 4px; height: 10px; }
+.level-lock { margin: 10px 0 0 !important; color: var(--ink-2); }
+.link-btn.inline { padding: 0; font-size: inherit; }
