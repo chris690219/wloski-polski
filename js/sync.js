@@ -122,7 +122,7 @@ const FirebaseBackend = {
       } catch (e) { toast('Logowanie nieudane: ' + esc(friendlyAuthError(e))); }
       history.replaceState(null, '', clean);
     }
-    authMod.onAuthStateChanged(this.auth, u => onUser(u ? { id: u.uid, email: u.email || u.displayName || '' } : null));
+    authMod.onAuthStateChanged(this.auth, u => onUser(u ? { id: u.uid, email: u.email || u.displayName || '', name: u.displayName || '' } : null));
   },
   async signInGoogle() {
     const provider = new this.a.GoogleAuthProvider();
@@ -151,7 +151,59 @@ const FirebaseBackend = {
       state: JSON.stringify(state), updatedAt: this.f.serverTimestamp(), app: 'wloski-polski', v: 1,
     });
   },
+
+  /* ----- prośby o kod odblokowujący ----- */
+  _date(v) { return v?.toMillis ? v.toMillis() : v || 0; },
+  _req(snap) {
+    const d = snap.data();
+    return { ...d, createdAt: this._date(d.createdAt), decidedAt: this._date(d.decidedAt), redeemedAt: this._date(d.redeemedAt) };
+  },
+  async getRequest(uid) {
+    const snap = await this.f.getDoc(this.f.doc(this.db, 'unlockRequests', uid));
+    return snap.exists() ? this._req(snap) : null;
+  },
+  async createRequest(uid, { email, name, note }) {
+    await this.f.setDoc(this.f.doc(this.db, 'unlockRequests', uid), {
+      uid, email, name, note, status: 'pending', createdAt: this.f.serverTimestamp(),
+    });
+  },
+  async markRedeemed(uid) {
+    await this.f.updateDoc(this.f.doc(this.db, 'unlockRequests', uid), { redeemedAt: this.f.serverTimestamp() });
+  },
+  async isAdmin(uid) {
+    try { return (await this.f.getDoc(this.f.doc(this.db, 'admins', uid))).exists(); } catch { return false; }
+  },
+  async listRequests() {
+    const f = this.f;
+    const [reqs, codes] = await Promise.all([
+      f.getDocs(f.query(f.collection(this.db, 'unlockRequests'), f.orderBy('createdAt', 'desc'))),
+      f.getDocs(f.collection(this.db, 'unlockCodes')),
+    ]);
+    const byUid = Object.fromEntries(codes.docs.map(d => [d.id, d.data().code]));
+    return reqs.docs.map(d => ({ ...this._req(d), code: byUid[d.id] || '' }));
+  },
+  async decide(uid, approve, code, email) {
+    const f = this.f, batch = f.writeBatch(this.db);
+    const req = f.doc(this.db, 'unlockRequests', uid);
+    if (approve) {
+      // sam kod widzi tylko administrator; uczeń dostaje jego skrót do sprawdzenia
+      batch.set(f.doc(this.db, 'unlockCodes', uid), { code, email, createdAt: f.serverTimestamp() });
+      batch.update(req, { status: 'approved', codeHash: codeHash(code), decidedAt: f.serverTimestamp() });
+    } else {
+      batch.update(req, { status: 'rejected', decidedAt: f.serverTimestamp() });
+    }
+    await batch.commit();
+  },
 };
+
+/** Losowy, czytelny kod: ITA-XXXX-XXXX (bez mylących znaków 0/O, 1/I/L). */
+function generateUnlockCode() {
+  const abc = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+  const bytes = new Uint8Array(8);
+  crypto.getRandomValues(bytes);
+  const s = [...bytes].map(b => abc[b % abc.length]).join('');
+  return `ITA-${s.slice(0, 4)}-${s.slice(4)}`;
+}
 
 function friendlyAuthError(e) {
   const map = {
@@ -193,7 +245,11 @@ const Sync = {
     if (!this.enabled) return;
     window.addEventListener('online', () => (this.connected ? this.sync() : this.connect()));
     window.addEventListener('offline', () => { this.status = 'offline'; this.onChange(); });
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') this.sync(); });
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      this.sync();
+      if (this.admin) this.refreshPending().then(() => this.onChange());
+    });
     await this.connect();
   },
 
@@ -206,9 +262,9 @@ const Sync = {
         const was = this.user?.id;
         this.user = user;
         this.ready = true;
-        if (!user) this.status = 'idle';
+        if (!user) { this.status = 'idle'; this.admin = false; this.pending = 0; }
         this.onChange();
-        if (user && user.id !== was) this.sync();
+        if (user && user.id !== was) { this.sync(); this.checkAdmin(); }
       });
       this.connected = true;
     } catch (e) {
@@ -236,7 +292,47 @@ const Sync = {
     try { await this.backend.signOut(); } catch { /* i tak czyścimy */ }
     this.user = null;
     this.status = 'idle';
+    this.admin = false;
+    this.pending = 0;
     this.onChange();
+  },
+
+  /* ----- prośby o kod odblokowujący ----- */
+  admin: false,
+  pending: 0,
+
+  /** Czy zalogowany użytkownik jest administratorem (dokument admins/{uid} w Firestore). */
+  async checkAdmin() {
+    if (!this.user) return;
+    this.admin = await this.backend.isAdmin(this.user.id);
+    if (this.admin) await this.refreshPending();
+    this.onChange();
+  },
+  async refreshPending() {
+    if (!this.admin) return [];
+    try {
+      const list = await this.backend.listRequests();
+      this.pending = list.filter(r => r.status === 'pending').length;
+      return list;
+    } catch (e) { console.warn(e); return null; }
+  },
+  myRequest() { return this.backend.getRequest(this.user.id); },
+  requestCode(note) {
+    return this.backend.createRequest(this.user.id, { email: this.user.email || '', name: this.user.name || '', note: (note || '').slice(0, 500) });
+  },
+  /** Sprawdza osobisty kod ucznia; zwraca true, jeśli pasuje do zatwierdzonej prośby. */
+  async redeem(code) {
+    const req = await this.myRequest();
+    if (!req || req.status !== 'approved' || req.codeHash !== codeHash(code)) return false;
+    this.backend.markRedeemed(this.user.id).catch(e => console.warn(e));
+    return true;
+  },
+  async decide(req, approve) {
+    const code = approve ? generateUnlockCode() : '';
+    await this.backend.decide(req.uid, approve, code, req.email);
+    await this.refreshPending();
+    this.onChange();
+    return code;
   },
 
   schedule(delay = 2500) {

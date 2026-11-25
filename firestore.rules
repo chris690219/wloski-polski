@@ -1,14 +1,59 @@
 rules_version = '2';
 
-// Włoski z Polskim: każdy użytkownik może czytać i zapisywać wyłącznie swój postęp.
+// Włoski z Polskim – reguły bezpieczeństwa Firestore.
 // Wklej w konsoli Firebase: Firestore Database → Rules → Publish.
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    // Administrator = konto, dla którego istnieje dokument admins/{uid}
+    // (tworzony ręcznie w konsoli Firebase; nikt nie może go utworzyć z aplikacji).
+    function isAdmin() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // Postęp nauki: każdy czyta i zapisuje wyłącznie swój.
     match /progress/{uid} {
-      allow read, delete: if request.auth != null && request.auth.uid == uid;
-      allow create, update: if request.auth != null && request.auth.uid == uid
+      allow read, delete: if isOwner(uid);
+      allow create, update: if isOwner(uid)
                             && request.resource.data.state is string
                             && request.resource.data.state.size() < 900000;
+    }
+
+    // Lista administratorów: można sprawdzić tylko siebie.
+    match /admins/{uid} {
+      allow get: if isOwner(uid);
+    }
+
+    // Prośby o osobisty kod odblokowujący wszystkie lekcje.
+    match /unlockRequests/{uid} {
+      function validNewRequest() {
+        let d = request.resource.data;
+        return d.keys().hasOnly(['uid', 'email', 'name', 'note', 'status', 'createdAt'])
+          && d.uid == uid
+          && d.status == 'pending'
+          && d.email is string && d.email.size() < 200
+          && d.name is string && d.name.size() < 200
+          && d.note is string && d.note.size() <= 500;
+      }
+      allow get: if isOwner(uid) || isAdmin();
+      allow list: if isAdmin();
+      // nowa prośba albo ponowna po odrzuceniu
+      allow create: if isOwner(uid) && validNewRequest();
+      allow update: if isAdmin()
+        || (isOwner(uid) && resource.data.status == 'rejected' && validNewRequest())
+        // po zatwierdzeniu uczeń może tylko oznaczyć kod jako użyty
+        || (isOwner(uid) && resource.data.status == 'approved'
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['redeemedAt']));
+      allow delete: if isAdmin();
+    }
+
+    // Wygenerowane kody (otwartym tekstem) – widzi i zapisuje tylko administrator.
+    match /unlockCodes/{uid} {
+      allow read, write: if isAdmin();
     }
   }
 }

@@ -10,13 +10,6 @@
  * Dane użytkowników chronią reguły z pliku firestore.rules.
  */
 window.WP_CONFIG = {
-  /*
-   * Kod odblokowujący wszystkie lekcje (Profil → „Odblokuj wszystkie lekcje”).
-   * Zapisany jest skrót kodu, a nie sam kod. Aby ustawić nowy kod: otwórz aplikację,
-   * w konsoli przeglądarki (F12) wpisz  codeHash('NOWYKOD')  i wklej tu wynik.
-   * Wielkość liter i spacje na końcach nie mają znaczenia.
-   */
-  unlockCodeHash: '5c05a5eeb6f06a4b',
   firebase: {
     apiKey: 'AIzaSyCSRtplvt8ebwh0IR1xbgVrvAetcg8P85w',
     authDomain: 'nauka-wloskiego.firebaseapp.com',
